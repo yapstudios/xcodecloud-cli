@@ -1,0 +1,3 @@
+import XcodeCloudCLI
+
+XcodeCloud.main()

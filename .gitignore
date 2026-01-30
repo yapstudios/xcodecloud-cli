@@ -34,5 +34,5 @@ Package.resolved
 *.swo
 *~
 
-# Build outputs
-xcodecloud
+# Build outputs (the binary, not the Sources directory)
+/xcodecloud
