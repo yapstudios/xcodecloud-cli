@@ -280,6 +280,31 @@ public struct FileSource: Codable, Sendable {
     public let lineNumber: Int?
 }
 
+// MARK: - CI Test Results
+
+public struct CiTestResult: Codable, Sendable, Identifiable {
+    public let type: String
+    public let id: String
+    public let attributes: CiTestResultAttributes?
+}
+
+public struct CiTestResultAttributes: Codable, Sendable {
+    public let className: String?
+    public let name: String?
+    public let status: String?  // EXPECTED_FAILURE, FAILURE, SKIPPED, SUCCESS
+    public let fileSource: FileSource?
+    public let message: String?
+    public let destinationTestResults: [DestinationTestResult]?
+}
+
+public struct DestinationTestResult: Codable, Sendable {
+    public let uuid: String?
+    public let deviceName: String?
+    public let osVersion: String?
+    public let status: String?
+    public let duration: Double?
+}
+
 // MARK: - CI Artifacts
 
 public struct CiArtifact: Codable, Sendable, Identifiable {

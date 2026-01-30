@@ -253,6 +253,21 @@ extension CiIssue: OutputFormattable {
     }
 }
 
+extension CiTestResult: OutputFormattable {
+    public static var tableHeaders: [String] {
+        ["STATUS", "CLASS", "TEST", "MESSAGE"]
+    }
+
+    public var tableRow: [String] {
+        [
+            attributes?.status ?? "-",
+            attributes?.className ?? "-",
+            attributes?.name ?? "-",
+            attributes?.message ?? "-"
+        ]
+    }
+}
+
 private func formatDate(_ isoDate: String?) -> String? {
     guard let dateStr = isoDate else { return nil }
 
