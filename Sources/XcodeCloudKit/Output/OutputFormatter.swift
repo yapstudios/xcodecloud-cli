@@ -237,6 +237,22 @@ extension CiArtifact: OutputFormattable {
     }
 }
 
+extension CiIssue: OutputFormattable {
+    public static var tableHeaders: [String] {
+        ["TYPE", "CATEGORY", "FILE", "LINE", "MESSAGE"]
+    }
+
+    public var tableRow: [String] {
+        [
+            attributes?.issueType ?? "-",
+            attributes?.category ?? "-",
+            attributes?.fileSource?.path ?? "-",
+            attributes?.fileSource?.lineNumber.map(String.init) ?? "-",
+            attributes?.message ?? "-"
+        ]
+    }
+}
+
 private func formatDate(_ isoDate: String?) -> String? {
     guard let dateStr = isoDate else { return nil }
 

@@ -61,6 +61,12 @@ public actor APIClient {
         try await request(.listBuildActions(buildRunId: buildRunId))
     }
 
+    // MARK: - Issues
+
+    public func listIssues(buildActionId: String) async throws -> APIListResponse<CiIssue> {
+        try await request(.listIssues(buildActionId: buildActionId))
+    }
+
     // MARK: - Artifacts
 
     public func listArtifacts(buildActionId: String) async throws -> APIListResponse<CiArtifact> {

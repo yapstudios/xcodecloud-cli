@@ -29,12 +29,17 @@ struct BuildsCommand: ParsableCommand {
 
               Get build status:
                 $ xcodecloud builds get <build-id>
+
+              Show build errors:
+                $ xcodecloud builds errors <build-id>
             """,
         subcommands: [
             BuildsListCommand.self,
             BuildsGetCommand.self,
             BuildsStartCommand.self,
-            BuildsActionsCommand.self
+            BuildsActionsCommand.self,
+            BuildsErrorsCommand.self,
+            BuildsIssuesCommand.self
         ]
     )
 }
@@ -249,6 +254,174 @@ struct BuildsActionsCommand: ParsableCommand {
             } else {
                 let output = try formatter.format(response.data)
                 print(output)
+            }
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
+            throw ExitCode(rawValue: error.exitCode)
+        }
+    }
+}
+
+struct BuildsErrorsCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "errors",
+        abstract: "Show errors and issues for a build run",
+        discussion: """
+            Fetches all build actions for a build run and displays any errors or issues.
+            This is a convenience command that combines 'actions' and 'issues' output.
+            """
+    )
+
+    @OptionGroup var options: GlobalOptions
+
+    @Argument(help: "Build run ID")
+    var buildId: String
+
+    mutating func run() throws {
+        let client: APIClient
+        do {
+            client = try options.apiClient()
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
+            throw ExitCode(rawValue: error.exitCode)
+        }
+
+        let bId = buildId
+        let verbose = options.verbose
+
+        do {
+            // First get all actions for this build
+            printVerbose("Fetching actions for build \(bId)...", verbose: verbose)
+            let actionsResponse = try runAsync {
+                try await client.listBuildActions(buildRunId: bId)
+            }
+
+            let failedActions = actionsResponse.data.filter {
+                $0.attributes?.completionStatus == "FAILED" ||
+                $0.attributes?.completionStatus == "ERRORED"
+            }
+
+            if failedActions.isEmpty && options.output != .json {
+                print("No failed actions found for build \(bId)")
+
+                // Show summary of actions
+                let actionSummary = actionsResponse.data.map {
+                    "\($0.attributes?.name ?? "Unknown"): \($0.attributes?.completionStatus ?? "Unknown")"
+                }.joined(separator: ", ")
+                print("Actions: \(actionSummary)")
+                return
+            }
+
+            var allIssues: [CiIssue] = []
+
+            // Get issues for each failed action
+            for action in failedActions {
+                printVerbose("Fetching issues for action \(action.id)...", verbose: verbose)
+                let issuesResponse = try runAsync {
+                    try await client.listIssues(buildActionId: action.id)
+                }
+                allIssues.append(contentsOf: issuesResponse.data)
+            }
+
+            let formatter = options.outputFormatter()
+
+            if options.output == .json {
+                // Output structured JSON with actions and issues
+                struct ErrorReport: Codable {
+                    let buildId: String
+                    let failedActions: [CiBuildAction]
+                    let issues: [CiIssue]
+                }
+                let report = ErrorReport(buildId: bId, failedActions: failedActions, issues: allIssues)
+                let output = try formatter.formatRawJSON(report)
+                print(output)
+            } else {
+                // Human-readable output
+                print("Build \(bId) - Failed Actions:")
+                print("")
+
+                for action in failedActions {
+                    print("  \(action.attributes?.name ?? "Unknown") (\(action.attributes?.actionType ?? ""))")
+                    print("    Status: \(action.attributes?.completionStatus ?? "Unknown")")
+                }
+
+                if !allIssues.isEmpty {
+                    print("")
+                    print("Issues (\(allIssues.count)):")
+                    print("")
+
+                    for issue in allIssues {
+                        let issueType = issue.attributes?.issueType ?? "UNKNOWN"
+                        let message = issue.attributes?.message ?? "No message"
+                        let file = issue.attributes?.fileSource?.path ?? ""
+                        let line = issue.attributes?.fileSource?.lineNumber
+
+                        if !file.isEmpty {
+                            if let line = line {
+                                print("  [\(issueType)] \(file):\(line)")
+                            } else {
+                                print("  [\(issueType)] \(file)")
+                            }
+                        } else {
+                            print("  [\(issueType)]")
+                        }
+                        print("    \(message)")
+                        print("")
+                    }
+                } else {
+                    print("")
+                    print("No detailed issues available.")
+                    print("Check build logs with: xcodecloud builds actions \(bId)")
+                }
+            }
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
+            throw ExitCode(rawValue: error.exitCode)
+        }
+    }
+}
+
+struct BuildsIssuesCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "issues",
+        abstract: "List issues for a build action"
+    )
+
+    @OptionGroup var options: GlobalOptions
+
+    @Argument(help: "Build action ID")
+    var actionId: String
+
+    mutating func run() throws {
+        let client: APIClient
+        do {
+            client = try options.apiClient()
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
+            throw ExitCode(rawValue: error.exitCode)
+        }
+
+        let aId = actionId
+        let verbose = options.verbose
+
+        do {
+            printVerbose("Fetching issues for action \(aId)...", verbose: verbose)
+            let response = try runAsync {
+                try await client.listIssues(buildActionId: aId)
+            }
+
+            let formatter = options.outputFormatter()
+
+            if options.output == .json {
+                let output = try formatter.formatRawJSON(response)
+                print(output)
+            } else {
+                if response.data.isEmpty {
+                    print("No issues found for action \(aId)")
+                } else {
+                    let output = try formatter.format(response.data)
+                    print(output)
+                }
             }
         } catch let error as CLIError {
             printError(error.localizedDescription)

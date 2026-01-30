@@ -13,6 +13,7 @@ public enum Endpoint {
     case listBuildActions(buildRunId: String)
     case listArtifacts(buildActionId: String)
     case getArtifact(id: String)
+    case listIssues(buildActionId: String)
 
     public var path: String {
         switch self {
@@ -41,6 +42,8 @@ public enum Endpoint {
             return "/v1/ciBuildActions/\(buildActionId)/artifacts"
         case .getArtifact(let id):
             return "/v1/ciArtifacts/\(id)"
+        case .listIssues(let buildActionId):
+            return "/v1/ciBuildActions/\(buildActionId)/issues"
         }
     }
 

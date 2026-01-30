@@ -260,6 +260,26 @@ public struct CiBuildActionAttributes: Codable, Sendable {
     public let isRequiredToPass: Bool?
 }
 
+// MARK: - CI Issues
+
+public struct CiIssue: Codable, Sendable, Identifiable {
+    public let type: String
+    public let id: String
+    public let attributes: CiIssueAttributes?
+}
+
+public struct CiIssueAttributes: Codable, Sendable {
+    public let issueType: String?
+    public let message: String?
+    public let fileSource: FileSource?
+    public let category: String?
+}
+
+public struct FileSource: Codable, Sendable {
+    public let path: String?
+    public let lineNumber: Int?
+}
+
 // MARK: - CI Artifacts
 
 public struct CiArtifact: Codable, Sendable, Identifiable {
