@@ -32,13 +32,14 @@ public struct XcodeCloud: ParsableCommand {
             """,
         version: "1.0.0",
         subcommands: [
+            InteractiveCommand.self,
             AuthCommand.self,
             ProductsCommand.self,
             WorkflowsCommand.self,
             BuildsCommand.self,
             ArtifactsCommand.self
         ],
-        defaultSubcommand: nil
+        defaultSubcommand: InteractiveCommand.self
     )
 
     public init() {}
