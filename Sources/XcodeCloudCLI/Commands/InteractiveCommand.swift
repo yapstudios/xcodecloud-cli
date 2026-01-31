@@ -222,10 +222,12 @@ struct InteractiveCommand: ParsableCommand {
             return
         }
 
-        let choices = response.data.map { build in
+        let sorted = response.data.sorted { ($0.attributes?.number ?? 0) > ($1.attributes?.number ?? 0) }
+        let choices = sorted.map { build in
             let number = build.attributes?.number.map { "#\($0)" } ?? ""
             let status = build.attributes?.completionStatus ?? build.attributes?.executionProgress ?? "Unknown"
-            let commit = build.attributes?.sourceCommit?.message?.prefix(40) ?? ""
+            let commitRaw = build.attributes?.sourceCommit?.message ?? ""
+            let commit = commitRaw.components(separatedBy: .newlines).first.map { String($0.prefix(40)) } ?? ""
             let label = "\(number) \(status)"
             let desc = commit.isEmpty ? nil : "- \(commit)"
             return Choice(label: label, value: build.id, description: desc)

@@ -83,18 +83,20 @@ public enum SelectPrompt {
         let hint = TerminalUI.dim("(arrow keys, enter to select)")
         lines.append("\(arrow) \(TerminalUI.bold(prompt)) \(hint)")
 
-        // Choice lines
+        // Choice lines — strip any embedded newlines to prevent frame overflow
         for (i, choice) in choices.enumerated() {
+            let safeLabel = choice.label.replacingOccurrences(of: "\n", with: " ")
+            let safeDesc = choice.description?.replacingOccurrences(of: "\n", with: " ")
             if i == selected {
                 let cursor = TerminalUI.cyan("❯")
-                var line = "\(cursor) \(TerminalUI.cyan(choice.label))"
-                if let desc = choice.description {
+                var line = "\(cursor) \(TerminalUI.cyan(safeLabel))"
+                if let desc = safeDesc {
                     line += " \(TerminalUI.dim(desc))"
                 }
                 lines.append(line)
             } else {
-                var line = "  \(choice.label)"
-                if let desc = choice.description {
+                var line = "  \(safeLabel)"
+                if let desc = safeDesc {
                     line += " \(TerminalUI.dim(desc))"
                 }
                 lines.append(line)
