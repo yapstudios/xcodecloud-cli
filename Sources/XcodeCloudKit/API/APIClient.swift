@@ -67,10 +67,18 @@ public actor APIClient {
         try await request(.listIssues(buildActionId: buildActionId))
     }
 
+    public func getIssue(id: String) async throws -> APIResponse<CiIssue> {
+        try await request(.getIssue(id: id))
+    }
+
     // MARK: - Test Results
 
     public func listTestResults(buildActionId: String) async throws -> APIListResponse<CiTestResult> {
         try await request(.listTestResults(buildActionId: buildActionId))
+    }
+
+    public func getTestResult(id: String) async throws -> APIResponse<CiTestResult> {
+        try await request(.getTestResult(id: id))
     }
 
     // MARK: - Artifacts

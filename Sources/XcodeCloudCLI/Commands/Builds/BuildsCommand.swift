@@ -43,7 +43,9 @@ struct BuildsCommand: ParsableCommand {
             BuildsActionsCommand.self,
             BuildsErrorsCommand.self,
             BuildsIssuesCommand.self,
-            BuildsTestsCommand.self
+            BuildsIssueGetCommand.self,
+            BuildsTestsCommand.self,
+            BuildsTestResultGetCommand.self
         ]
     )
 }
@@ -647,6 +649,96 @@ struct BuildsTestsCommand: ParsableCommand {
                         }
                     }
                 }
+            }
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
+            throw ExitCode(rawValue: error.exitCode)
+        }
+    }
+}
+
+struct BuildsIssueGetCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "issue",
+        abstract: "Get details for a specific issue by ID"
+    )
+
+    @OptionGroup var options: GlobalOptions
+
+    @Argument(help: "Issue ID")
+    var id: String
+
+    mutating func run() throws {
+        let client: APIClient
+        do {
+            client = try options.apiClient()
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
+            throw ExitCode(rawValue: error.exitCode)
+        }
+
+        let issueId = id
+        let verbose = options.verbose
+
+        do {
+            printVerbose("Fetching issue \(issueId)...", verbose: verbose)
+            let response = try runAsync {
+                try await client.getIssue(id: issueId)
+            }
+
+            let formatter = options.outputFormatter()
+
+            if options.output == .json {
+                let output = try formatter.formatRawJSON(response)
+                print(output)
+            } else {
+                let output = try formatter.format(response.data)
+                print(output)
+            }
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
+            throw ExitCode(rawValue: error.exitCode)
+        }
+    }
+}
+
+struct BuildsTestResultGetCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "test-result",
+        abstract: "Get details for a specific test result by ID"
+    )
+
+    @OptionGroup var options: GlobalOptions
+
+    @Argument(help: "Test result ID")
+    var id: String
+
+    mutating func run() throws {
+        let client: APIClient
+        do {
+            client = try options.apiClient()
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
+            throw ExitCode(rawValue: error.exitCode)
+        }
+
+        let testResultId = id
+        let verbose = options.verbose
+
+        do {
+            printVerbose("Fetching test result \(testResultId)...", verbose: verbose)
+            let response = try runAsync {
+                try await client.getTestResult(id: testResultId)
+            }
+
+            let formatter = options.outputFormatter()
+
+            if options.output == .json {
+                let output = try formatter.formatRawJSON(response)
+                print(output)
+            } else {
+                let output = try formatter.format(response.data)
+                print(output)
             }
         } catch let error as CLIError {
             printError(error.localizedDescription)
