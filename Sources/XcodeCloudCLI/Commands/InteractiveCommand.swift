@@ -112,36 +112,40 @@ struct InteractiveCommand: ParsableCommand {
             return Choice(label: name, value: product.id, description: "- \(type)")
         } + [Choice(label: "Back", value: "back")]
 
-        let choice: Choice
-        do {
-            choice = try SelectPrompt.run(prompt: "Select a product:", choices: choices)
-        } catch is SelectPromptError {
-            return
+        while true {
+            let choice: Choice
+            do {
+                choice = try SelectPrompt.run(prompt: "Select a product:", choices: choices)
+            } catch is SelectPromptError {
+                return
+            }
+
+            guard choice.value != "back" else { return }
+
+            try productActionsMenu(client: client, productId: choice.value, productName: choice.label)
         }
-
-        guard choice.value != "back" else { return }
-
-        try productActionsMenu(client: client, productId: choice.value, productName: choice.label)
     }
 
     private func productActionsMenu(client: APIClient, productId: String, productName: String) throws {
-        let choice: Choice
-        do {
-            choice = try SelectPrompt.run(
-                prompt: "\(productName) -",
-                choices: [
-                    Choice(label: "List workflows", value: "workflows"),
-                    Choice(label: "Back", value: "back"),
-                ]
-            )
-        } catch is SelectPromptError {
-            return
-        }
+        while true {
+            let choice: Choice
+            do {
+                choice = try SelectPrompt.run(
+                    prompt: "\(productName) -",
+                    choices: [
+                        Choice(label: "List workflows", value: "workflows"),
+                        Choice(label: "Back", value: "back"),
+                    ]
+                )
+            } catch is SelectPromptError {
+                return
+            }
 
-        guard choice.value != "back" else { return }
+            guard choice.value != "back" else { return }
 
-        if choice.value == "workflows" {
-            try workflowsMenu(client: client, productId: productId, productName: productName)
+            if choice.value == "workflows" {
+                try workflowsMenu(client: client, productId: productId, productName: productName)
+            }
         }
     }
 
@@ -164,40 +168,44 @@ struct InteractiveCommand: ParsableCommand {
             return Choice(label: name, value: workflow.id, description: enabled.isEmpty ? nil : enabled)
         } + [Choice(label: "Back", value: "back")]
 
-        let choice: Choice
-        do {
-            choice = try SelectPrompt.run(prompt: "Select a workflow:", choices: choices)
-        } catch is SelectPromptError {
-            return
+        while true {
+            let choice: Choice
+            do {
+                choice = try SelectPrompt.run(prompt: "Select a workflow:", choices: choices)
+            } catch is SelectPromptError {
+                return
+            }
+
+            guard choice.value != "back" else { return }
+
+            try workflowActionsMenu(client: client, workflowId: choice.value, workflowName: choice.label)
         }
-
-        guard choice.value != "back" else { return }
-
-        try workflowActionsMenu(client: client, workflowId: choice.value, workflowName: choice.label)
     }
 
     private func workflowActionsMenu(client: APIClient, workflowId: String, workflowName: String) throws {
-        let choice: Choice
-        do {
-            choice = try SelectPrompt.run(
-                prompt: "\(workflowName) -",
-                choices: [
-                    Choice(label: "List builds", value: "builds"),
-                    Choice(label: "Start build", value: "start"),
-                    Choice(label: "Back", value: "back"),
-                ]
-            )
-        } catch is SelectPromptError {
-            return
-        }
+        while true {
+            let choice: Choice
+            do {
+                choice = try SelectPrompt.run(
+                    prompt: "\(workflowName) -",
+                    choices: [
+                        Choice(label: "List builds", value: "builds"),
+                        Choice(label: "Start build", value: "start"),
+                        Choice(label: "Back", value: "back"),
+                    ]
+                )
+            } catch is SelectPromptError {
+                return
+            }
 
-        switch choice.value {
-        case "builds":
-            try buildsMenu(client: client, workflowId: workflowId, workflowName: workflowName)
-        case "start":
-            try startBuild(client: client, workflowId: workflowId)
-        default:
-            break
+            switch choice.value {
+            case "builds":
+                try buildsMenu(client: client, workflowId: workflowId, workflowName: workflowName)
+            case "start":
+                try startBuild(client: client, workflowId: workflowId)
+            default:
+                return
+            }
         }
     }
 
@@ -223,43 +231,47 @@ struct InteractiveCommand: ParsableCommand {
             return Choice(label: label, value: build.id, description: desc)
         } + [Choice(label: "Back", value: "back")]
 
-        let choice: Choice
-        do {
-            choice = try SelectPrompt.run(prompt: "Select a build:", choices: choices)
-        } catch is SelectPromptError {
-            return
+        while true {
+            let choice: Choice
+            do {
+                choice = try SelectPrompt.run(prompt: "Select a build:", choices: choices)
+            } catch is SelectPromptError {
+                return
+            }
+
+            guard choice.value != "back" else { return }
+
+            try buildActionsMenu(client: client, buildId: choice.value, buildLabel: choice.label)
         }
-
-        guard choice.value != "back" else { return }
-
-        try buildActionsMenu(client: client, buildId: choice.value, buildLabel: choice.label)
     }
 
     private func buildActionsMenu(client: APIClient, buildId: String, buildLabel: String) throws {
-        let choice: Choice
-        do {
-            choice = try SelectPrompt.run(
-                prompt: "\(buildLabel) -",
-                choices: [
-                    Choice(label: "View details", value: "details"),
-                    Choice(label: "Show errors", value: "errors"),
-                    Choice(label: "List artifacts", value: "artifacts"),
-                    Choice(label: "Back", value: "back"),
-                ]
-            )
-        } catch is SelectPromptError {
-            return
-        }
+        while true {
+            let choice: Choice
+            do {
+                choice = try SelectPrompt.run(
+                    prompt: "\(buildLabel) -",
+                    choices: [
+                        Choice(label: "View details", value: "details"),
+                        Choice(label: "Show errors", value: "errors"),
+                        Choice(label: "List artifacts", value: "artifacts"),
+                        Choice(label: "Back", value: "back"),
+                    ]
+                )
+            } catch is SelectPromptError {
+                return
+            }
 
-        switch choice.value {
-        case "details":
-            try showBuildDetails(client: client, buildId: buildId)
-        case "errors":
-            try showBuildErrors(client: client, buildId: buildId)
-        case "artifacts":
-            try artifactsMenu(client: client, buildId: buildId)
-        default:
-            break
+            switch choice.value {
+            case "details":
+                try showBuildDetails(client: client, buildId: buildId)
+            case "errors":
+                try showBuildErrors(client: client, buildId: buildId)
+            case "artifacts":
+                try artifactsMenu(client: client, buildId: buildId)
+            default:
+                return
+            }
         }
     }
 
