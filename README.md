@@ -18,7 +18,7 @@ A command-line interface for [Xcode Cloud](https://developer.apple.com/xcode-clo
 
 ```bash
 brew install mint
-mint install yapstudios/xcodecloud-cli@main
+mint install yapstudios/xcodecloud-cli
 ```
 
 Make sure `~/.mint/bin` is in your PATH:
@@ -31,7 +31,7 @@ source ~/.zshrc
 To update later:
 
 ```bash
-mint install yapstudios/xcodecloud-cli@main
+mint install yapstudios/xcodecloud-cli
 ```
 
 ### Building from source
