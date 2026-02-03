@@ -76,6 +76,36 @@ swift build -c release
 cp .build/release/xcodecloud /usr/local/bin/
 ```
 
+### Shell completions
+
+Enable tab-completion for all commands and flags:
+
+**Zsh (default on macOS):**
+
+```bash
+xcodecloud --generate-completion-script zsh > ~/.zsh/completions/_xcodecloud
+```
+
+Then add this to your `~/.zshrc` (if not already present):
+
+```bash
+fpath=(~/.zsh/completions $fpath)
+autoload -Uz compinit && compinit
+```
+
+**Bash:**
+
+```bash
+xcodecloud --generate-completion-script bash > ~/.bash_completions/xcodecloud.bash
+echo 'source ~/.bash_completions/xcodecloud.bash' >> ~/.bash_profile
+```
+
+**Fish:**
+
+```bash
+xcodecloud --generate-completion-script fish > ~/.config/fish/completions/xcodecloud.fish
+```
+
 ## Quick Start
 
 ```bash
