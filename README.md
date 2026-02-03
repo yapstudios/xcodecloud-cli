@@ -43,7 +43,21 @@ xcodecloud
 
 ## Installation
 
-### Using Mint (recommended)
+### Using Homebrew (recommended)
+
+```bash
+brew install yapstudios/tap/xcodecloud
+```
+
+To update later:
+
+```bash
+brew upgrade xcodecloud
+```
+
+This builds from source and automatically installs shell completions for zsh, bash, and fish.
+
+### Using Mint
 
 [Mint](https://github.com/yonaskolb/Mint) is a package manager for Swift CLI tools.
 
