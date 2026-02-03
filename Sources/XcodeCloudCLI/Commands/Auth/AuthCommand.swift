@@ -64,24 +64,28 @@ struct AuthInitCommand: ParsableCommand {
         print("Setting up Xcode Cloud CLI credentials")
         print("=======================================\n")
         print("You'll need your App Store Connect API credentials.")
-        print("Get them from: App Store Connect > Users and Access > Keys\n")
+        print("Create or find them at:")
+        print("  https://appstoreconnect.apple.com/access/integrations/api\n")
 
         // Get Key ID
-        print("Enter your Key ID: ", terminator: "")
+        print("Key ID (10-character alphanumeric, e.g., ABC123DEF4):")
+        print("> ", terminator: "")
         guard let keyId = readLine()?.trimmingCharacters(in: .whitespaces), !keyId.isEmpty else {
             print("Key ID is required")
             throw ExitCode.failure
         }
 
         // Get Issuer ID
-        print("Enter your Issuer ID: ", terminator: "")
+        print("\nIssuer ID (UUID format, e.g., 12345678-1234-1234-1234-123456789abc):")
+        print("> ", terminator: "")
         guard let issuerId = readLine()?.trimmingCharacters(in: .whitespaces), !issuerId.isEmpty else {
             print("Issuer ID is required")
             throw ExitCode.failure
         }
 
         // Get private key path
-        print("Enter path to your .p8 private key file: ", terminator: "")
+        print("\nPath to .p8 private key file (e.g., ~/AuthKey_ABC123DEF4.p8):")
+        print("> ", terminator: "")
         guard let keyPath = readLine()?.trimmingCharacters(in: .whitespaces), !keyPath.isEmpty else {
             print("Private key path is required")
             throw ExitCode.failure
