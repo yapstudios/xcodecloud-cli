@@ -215,6 +215,22 @@ struct CommandParsingTests {
         #expect(startCmd.branch == nil)
     }
 
+    @Test("Builds watch parses with build ID")
+    func testBuildsWatch() throws {
+        let command = try XcodeCloud.parseAsRoot(["builds", "watch", "build123"])
+        #expect(command is BuildsWatchCommand)
+        let watchCmd = command as! BuildsWatchCommand
+        #expect(watchCmd.id == "build123")
+        #expect(watchCmd.interval == 10)
+    }
+
+    @Test("Builds watch parses with custom interval")
+    func testBuildsWatchWithInterval() throws {
+        let command = try XcodeCloud.parseAsRoot(["builds", "watch", "build123", "--interval", "5"])
+        let watchCmd = command as! BuildsWatchCommand
+        #expect(watchCmd.interval == 5)
+    }
+
     @Test("Builds actions parses with build ID")
     func testBuildsActions() throws {
         let command = try XcodeCloud.parseAsRoot(["builds", "actions", "build123"])

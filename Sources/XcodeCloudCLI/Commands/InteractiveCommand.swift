@@ -255,6 +255,7 @@ struct InteractiveCommand: ParsableCommand {
                 choice = try SelectPrompt.run(
                     prompt: "\(buildLabel) -",
                     choices: [
+                        Choice(label: "Watch build", value: "watch"),
                         Choice(label: "View details", value: "details"),
                         Choice(label: "Show errors", value: "errors"),
                         Choice(label: "List artifacts", value: "artifacts"),
@@ -266,6 +267,8 @@ struct InteractiveCommand: ParsableCommand {
             }
 
             switch choice.value {
+            case "watch":
+                try watchBuild(client: client, buildId: buildId)
             case "details":
                 try showBuildDetails(client: client, buildId: buildId)
             case "errors":
@@ -348,6 +351,106 @@ struct InteractiveCommand: ParsableCommand {
             print("  Build number: \(number)")
         }
         print("")
+    }
+
+    private func watchBuild(client: APIClient, buildId: String) throws {
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let dateFormatterNoFrac = ISO8601DateFormatter()
+        dateFormatterNoFrac.formatOptions = [.withInternetDateTime]
+
+        func parseDate(_ string: String?) -> Date? {
+            guard let string else { return nil }
+            return dateFormatter.date(from: string) ?? dateFormatterNoFrac.date(from: string)
+        }
+
+        func formatDuration(_ seconds: Int) -> String {
+            if seconds < 60 { return "\(seconds)s" }
+            let m = seconds / 60
+            let s = seconds % 60
+            return s > 0 ? "\(m)m \(s)s" : "\(m)m"
+        }
+
+        func colorStatus(_ status: String) -> String {
+            switch status {
+            case "SUCCEEDED": return TerminalUI.green(status)
+            case "FAILED", "ERRORED": return TerminalUI.red(status)
+            case "CANCELED", "SKIPPED": return TerminalUI.yellow(status)
+            case "RUNNING": return TerminalUI.cyan(status)
+            default: return TerminalUI.dim(status)
+            }
+        }
+
+        var previousLineCount = 0
+
+        while true {
+            let response = try runAsync {
+                try await client.getBuildRun(id: buildId)
+            }
+            let build = response.data
+            let attrs = build.attributes
+            let progress = attrs?.executionProgress ?? "UNKNOWN"
+            let status = attrs?.completionStatus
+            let buildNumber = attrs?.number.map { "#\($0)" } ?? buildId
+
+            let elapsed: String
+            if progress == "COMPLETE",
+               let started = parseDate(attrs?.startedDate),
+               let finished = parseDate(attrs?.finishedDate) {
+                elapsed = formatDuration(Int(finished.timeIntervalSince(started)))
+            } else if let started = parseDate(attrs?.startedDate) {
+                elapsed = formatDuration(Int(Date().timeIntervalSince(started)))
+            } else {
+                elapsed = "waiting..."
+            }
+
+            let actionsResponse = try runAsync {
+                try await client.listBuildActions(buildRunId: buildId)
+            }
+            let actions = actionsResponse.data
+
+            // Clear previous output
+            if previousLineCount > 0 {
+                for _ in 0..<previousLineCount {
+                    TerminalUI.clearLine()
+                    TerminalUI.moveCursorUp(1)
+                }
+                TerminalUI.clearLine()
+            }
+
+            if progress == "COMPLETE" {
+                let statusText = status ?? "UNKNOWN"
+                print("Build \(buildNumber) \(colorStatus(statusText)) (\(elapsed))")
+                for action in actions {
+                    let name = action.attributes?.name ?? "Unknown"
+                    let actionStatus = action.attributes?.completionStatus ?? "-"
+                    print("  \(name)  \(colorStatus(actionStatus))")
+                }
+                print("")
+                return
+            }
+
+            // Render live status
+            var lines = [String]()
+            lines.append("Watching build \(buildNumber)...")
+            lines.append("  Status: \(colorStatus(progress)) (\(elapsed))")
+
+            if !actions.isEmpty {
+                lines.append("  Actions:")
+                for action in actions {
+                    let name = action.attributes?.name ?? "Unknown"
+                    let actionProgress = action.attributes?.completionStatus ?? action.attributes?.executionProgress ?? "-"
+                    lines.append("    \(name)  \(colorStatus(actionProgress))")
+                }
+            }
+
+            for line in lines {
+                print(line)
+            }
+            previousLineCount = lines.count
+
+            sleep(10)
+        }
     }
 
     // MARK: - Artifacts

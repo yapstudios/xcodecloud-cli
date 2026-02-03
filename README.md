@@ -30,6 +30,7 @@ xcodecloud
 │   ├── list               → List build runs
 │   ├── get <id>           → Get details for a build run
 │   ├── start <workflow-id>→ Start a new build run
+│   ├── watch <build-id>  → Watch a build until completion
 │   ├── actions <build-id> → List actions for a build run
 │   ├── errors <build-id>  → Show errors, issues, and test failures
 │   ├── issues <action-id> → List issues for a build action
@@ -277,6 +278,12 @@ xcodecloud builds start <workflow-id> --branch main
 # Start a build for a specific tag
 xcodecloud builds start <workflow-id> --tag v1.0.0
 
+# Watch a build until completion (polls every 10s)
+xcodecloud builds watch <build-id>
+
+# Watch with faster polling
+xcodecloud builds watch <build-id> --interval 5
+
 # Show build errors (compiler issues + test failures)
 xcodecloud builds errors <build-id>
 
@@ -379,19 +386,11 @@ xcodecloud builds errors ghi789
 xcodecloud builds list --workflow <workflow-id> --limit 1 -o json | jq '.data[0].attributes'
 ```
 
-**Start a build and wait for completion:**
+**Start a build and watch until completion:**
 
 ```bash
 BUILD_ID=$(xcodecloud builds start <workflow-id> -o json | jq -r '.data.id')
-echo "Started build: $BUILD_ID"
-
-# Poll for completion
-while true; do
-  STATUS=$(xcodecloud builds get $BUILD_ID -o json | jq -r '.data.attributes.executionProgress')
-  echo "Status: $STATUS"
-  if [ "$STATUS" = "COMPLETE" ]; then break; fi
-  sleep 30
-done
+xcodecloud builds watch $BUILD_ID
 ```
 
 **Download all artifacts from a build:**

@@ -40,6 +40,7 @@ struct BuildsCommand: ParsableCommand {
             BuildsListCommand.self,
             BuildsGetCommand.self,
             BuildsStartCommand.self,
+            BuildsWatchCommand.self,
             BuildsActionsCommand.self,
             BuildsErrorsCommand.self,
             BuildsIssuesCommand.self,
@@ -216,6 +217,200 @@ struct BuildsStartCommand: ParsableCommand {
             } else if !quiet {
                 print("\nRun 'xcodecloud builds get \(response.data.id)' to check status")
             }
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
+            throw ExitCode(rawValue: error.exitCode)
+        }
+    }
+}
+
+struct BuildsWatchCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "watch",
+        abstract: "Watch a build run until completion",
+        discussion: """
+            Polls the build status and displays live progress updates.
+            Exits with code 0 on success, 1 on failure.
+
+            EXAMPLES
+              Watch a build:
+                $ xcodecloud builds watch <build-id>
+
+              Watch with faster polling:
+                $ xcodecloud builds watch <build-id> --interval 5
+            """
+    )
+
+    @OptionGroup var options: GlobalOptions
+
+    @Argument(help: "Build run ID to watch")
+    var id: String
+
+    @Option(name: .long, help: "Poll interval in seconds (default: 10)")
+    var interval: Int = 10
+
+    mutating func run() throws {
+        let client: APIClient
+        do {
+            client = try options.apiClient()
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
+            throw ExitCode(rawValue: error.exitCode)
+        }
+
+        let buildId = id
+        let verbose = options.verbose
+        let quiet = options.quiet
+        let pollInterval = max(interval, 1)
+        let isTTY = TerminalUI.isInteractiveTerminal
+
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        let dateFormatterNoFrac = ISO8601DateFormatter()
+        dateFormatterNoFrac.formatOptions = [.withInternetDateTime]
+
+        func parseDate(_ string: String?) -> Date? {
+            guard let string else { return nil }
+            return dateFormatter.date(from: string) ?? dateFormatterNoFrac.date(from: string)
+        }
+
+        func formatDuration(_ seconds: Int) -> String {
+            if seconds < 60 {
+                return "\(seconds)s"
+            } else {
+                let m = seconds / 60
+                let s = seconds % 60
+                return s > 0 ? "\(m)m \(s)s" : "\(m)m"
+            }
+        }
+
+        func colorStatus(_ status: String) -> String {
+            switch status {
+            case "SUCCEEDED": return TerminalUI.green(status)
+            case "FAILED", "ERRORED": return TerminalUI.red(status)
+            case "CANCELED", "SKIPPED": return TerminalUI.yellow(status)
+            case "RUNNING": return TerminalUI.cyan(status)
+            default: return TerminalUI.dim(status)
+            }
+        }
+
+        var previousLineCount = 0
+
+        do {
+            while true {
+                printVerbose("Polling build \(buildId)...", verbose: verbose)
+
+                let response = try runAsync {
+                    try await client.getBuildRun(id: buildId)
+                }
+                let build = response.data
+                let attrs = build.attributes
+
+                let progress = attrs?.executionProgress ?? "UNKNOWN"
+                let status = attrs?.completionStatus
+                let buildNumber = attrs?.number.map { "#\($0)" } ?? buildId
+
+                // Calculate elapsed time
+                let elapsed: String
+                if progress == "COMPLETE",
+                   let started = parseDate(attrs?.startedDate),
+                   let finished = parseDate(attrs?.finishedDate) {
+                    elapsed = formatDuration(Int(finished.timeIntervalSince(started)))
+                } else if let started = parseDate(attrs?.startedDate) {
+                    elapsed = formatDuration(Int(Date().timeIntervalSince(started)))
+                } else {
+                    elapsed = "waiting..."
+                }
+
+                // Fetch actions
+                let actionsResponse = try runAsync {
+                    try await client.listBuildActions(buildRunId: buildId)
+                }
+                let actions = actionsResponse.data
+
+                if progress == "COMPLETE" {
+                    // Final output
+                    let statusText = status ?? "UNKNOWN"
+
+                    if quiet {
+                        // Quiet mode: just exit with appropriate code
+                        if statusText == "SUCCEEDED" {
+                            throw ExitCode.success
+                        } else {
+                            throw ExitCode.failure
+                        }
+                    }
+
+                    // Clear any previous live output
+                    if isTTY && previousLineCount > 0 {
+                        for _ in 0..<previousLineCount {
+                            TerminalUI.clearLine()
+                            TerminalUI.moveCursorUp(1)
+                        }
+                        TerminalUI.clearLine()
+                    }
+
+                    // Print final summary
+                    print("Build \(buildNumber) \(colorStatus(statusText)) (\(elapsed))")
+                    for action in actions {
+                        let name = action.attributes?.name ?? "Unknown"
+                        let actionStatus = action.attributes?.completionStatus ?? action.attributes?.executionProgress ?? "-"
+                        print("  \(name)  \(colorStatus(actionStatus))")
+                    }
+
+                    if statusText == "SUCCEEDED" {
+                        throw ExitCode.success
+                    } else {
+                        throw ExitCode.failure
+                    }
+                }
+
+                // Build still in progress
+                if quiet {
+                    // Quiet mode: just sleep and continue
+                    sleep(UInt32(pollInterval))
+                    continue
+                }
+
+                if isTTY {
+                    // Clear previous output
+                    if previousLineCount > 0 {
+                        for _ in 0..<previousLineCount {
+                            TerminalUI.clearLine()
+                            TerminalUI.moveCursorUp(1)
+                        }
+                        TerminalUI.clearLine()
+                    }
+
+                    // Render status block
+                    var lines = [String]()
+                    lines.append("Watching build \(buildNumber)...")
+                    lines.append("  Status: \(colorStatus(progress)) (\(elapsed))")
+
+                    if !actions.isEmpty {
+                        lines.append("  Actions:")
+                        for action in actions {
+                            let name = action.attributes?.name ?? "Unknown"
+                            let actionProgress = action.attributes?.completionStatus ?? action.attributes?.executionProgress ?? "-"
+                            lines.append("    \(name)  \(colorStatus(actionProgress))")
+                        }
+                    }
+
+                    for line in lines {
+                        print(line)
+                    }
+                    previousLineCount = lines.count
+                } else {
+                    // Non-TTY: one line per poll
+                    let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+                    print("[\(timestamp)] \(progress) (\(elapsed))")
+                }
+
+                sleep(UInt32(pollInterval))
+            }
+        } catch let exitCode as ExitCode {
+            throw exitCode
         } catch let error as CLIError {
             printError(error.localizedDescription)
             throw ExitCode(rawValue: error.exitCode)
