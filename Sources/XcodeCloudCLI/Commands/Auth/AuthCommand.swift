@@ -165,8 +165,6 @@ struct AuthProfilesCommand: ParsableCommand {
         abstract: "List configured profiles"
     )
 
-    @OptionGroup var options: GlobalOptions
-
     mutating func run() throws {
         let resolver = CredentialResolver()
 

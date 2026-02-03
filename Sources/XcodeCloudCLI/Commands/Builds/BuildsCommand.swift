@@ -437,7 +437,16 @@ struct BuildsErrorsCommand: ParsableCommand {
 struct BuildsIssuesCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "issues",
-        abstract: "List issues for a build action"
+        abstract: "List issues for a build action",
+        discussion: """
+            Lists compiler issues (errors/warnings) for a specific build action.
+
+            NOTE: This takes a build ACTION ID, not a build ID.
+            First run 'xcodecloud builds actions <build-id>' to get action IDs.
+
+            For a simpler workflow, use 'xcodecloud builds errors <build-id>'
+            which aggregates all issues across all actions.
+            """
     )
 
     @OptionGroup var options: GlobalOptions

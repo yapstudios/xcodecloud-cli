@@ -17,6 +17,16 @@ struct ArtifactsCommand: ParsableCommand {
               TEST_PRODUCTS - Test results
               TEST_RESULTS - Test report
 
+            WORKFLOW
+              To download artifacts, first get the build action IDs:
+                $ xcodecloud builds actions <build-id>
+
+              Then list artifacts for a specific action:
+                $ xcodecloud artifacts list <build-action-id>
+
+              Finally, download the artifact:
+                $ xcodecloud artifacts download <artifact-id>
+
             EXAMPLES
               List artifacts for a build action:
                 $ xcodecloud artifacts list <build-action-id>
@@ -25,7 +35,7 @@ struct ArtifactsCommand: ParsableCommand {
                 $ xcodecloud artifacts download <artifact-id>
 
               Download to a specific location:
-                $ xcodecloud artifacts download <artifact-id> --output ./downloads/
+                $ xcodecloud artifacts download <artifact-id> --dir ./downloads/
             """,
         subcommands: [
             ArtifactsListCommand.self,
@@ -90,7 +100,7 @@ struct ArtifactsDownloadCommand: ParsableCommand {
     @Argument(help: "Artifact ID")
     var artifactId: String
 
-    @Option(name: [.customShort("O"), .customLong("output")], help: "Output directory (default: current directory)")
+    @Option(name: [.customShort("d"), .customLong("dir")], help: "Output directory (default: current directory)")
     var outputDir: String = "."
 
     mutating func run() throws {

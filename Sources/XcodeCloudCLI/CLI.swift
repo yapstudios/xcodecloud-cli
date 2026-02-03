@@ -8,16 +8,24 @@ public struct XcodeCloud: ParsableCommand {
         discussion: """
             Interact with Xcode Cloud via the App Store Connect API.
 
+            INTERACTIVE MODE
+              Run 'xcodecloud' with no arguments to launch interactive mode.
+              Navigate with arrow keys, select with Enter, quit with 'q'.
+
             AUTHENTICATION
               Credentials can be provided via:
               1. Command-line flags (--key-id, --issuer-id, --private-key-path)
-              2. Environment variables (XCODE_CLOUD_KEY_ID, XCODE_CLOUD_ISSUER_ID, XCODE_CLOUD_PRIVATE_KEY_PATH)
-              3. Config file (~/.xcodecloud/config.json)
+              2. Environment variables (XCODE_CLOUD_KEY_ID, XCODE_CLOUD_ISSUER_ID,
+                 XCODE_CLOUD_PRIVATE_KEY_PATH)
+              3. Global config (~/.xcodecloud/config.json)
               4. Project-local config (.xcodecloud/config.json)
 
               Run 'xcodecloud auth init' to set up credentials interactively.
 
             EXAMPLES
+              Launch interactive mode:
+                $ xcodecloud
+
               List all CI products:
                 $ xcodecloud products list
 
