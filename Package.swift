@@ -36,6 +36,14 @@ let package = Package(
         .testTarget(
             name: "XcodeCloudKitTests",
             dependencies: ["XcodeCloudKit"]
+        ),
+        .testTarget(
+            name: "XcodeCloudCLITests",
+            dependencies: [
+                "XcodeCloudCLI",
+                "XcodeCloudKit",
+                .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ]
         )
     ]
 )

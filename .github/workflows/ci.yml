@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.0'
+
+      - name: Build
+        run: swift build -v
+
+      - name: Run tests
+        run: swift test -v
+
+  build-release:
+    name: Build Release
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.0'
+
+      - name: Build release binary
+        run: swift build -c release
+
+      - name: Verify binary runs
+        run: .build/release/xcodecloud --version
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodecloud-macos-arm64
+          path: .build/release/xcodecloud
+
+  lint:
+    name: Lint
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.0'
+
+      - name: Check formatting
+        run: |
+          # Verify Package.swift is valid
+          swift package dump-package
+
+          # Check for common issues
+          echo "Checking for TODO/FIXME comments..."
+          grep -r "TODO\|FIXME" Sources/ --include="*.swift" || echo "No TODOs found"
+
+  cli-smoke-test:
+    name: CLI Smoke Test
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.0'
+
+      - name: Build
+        run: swift build
+
+      - name: Test --help for all commands
+        run: |
+          set -e
+          echo "Testing root help..."
+          .build/debug/xcodecloud --help
+
+          echo "Testing auth help..."
+          .build/debug/xcodecloud auth --help
+          .build/debug/xcodecloud auth init --help
+          .build/debug/xcodecloud auth check --help
+          .build/debug/xcodecloud auth profiles --help
+          .build/debug/xcodecloud auth use --help
+
+          echo "Testing products help..."
+          .build/debug/xcodecloud products --help
+          .build/debug/xcodecloud products list --help
+          .build/debug/xcodecloud products get --help
+
+          echo "Testing workflows help..."
+          .build/debug/xcodecloud workflows --help
+          .build/debug/xcodecloud workflows list --help
+          .build/debug/xcodecloud workflows get --help
+
+          echo "Testing builds help..."
+          .build/debug/xcodecloud builds --help
+          .build/debug/xcodecloud builds list --help
+          .build/debug/xcodecloud builds get --help
+          .build/debug/xcodecloud builds start --help
+          .build/debug/xcodecloud builds actions --help
+          .build/debug/xcodecloud builds errors --help
+          .build/debug/xcodecloud builds issues --help
+          .build/debug/xcodecloud builds issue --help
+          .build/debug/xcodecloud builds tests --help
+          .build/debug/xcodecloud builds test-result --help
+
+          echo "Testing artifacts help..."
+          .build/debug/xcodecloud artifacts --help
+          .build/debug/xcodecloud artifacts list --help
+          .build/debug/xcodecloud artifacts download --help
+
+          echo "All help commands passed!"
+
+      - name: Test version flag
+        run: .build/debug/xcodecloud --version
+
+      - name: Test error handling (missing credentials)
+        run: |
+          # Should fail gracefully without credentials
+          if .build/debug/xcodecloud products list 2>&1 | grep -q "error\|Error\|credentials"; then
+            echo "Correctly reported missing credentials"
+          else
+            echo "Expected error about credentials"
+            exit 1
+          fi
+
+      - name: Test non-TTY detection
+        run: |
+          # When piped, interactive mode should fail gracefully
+          echo "" | .build/debug/xcodecloud 2>&1 | grep -q "TTY\|help\|Interactive" && echo "Correctly detected non-TTY"

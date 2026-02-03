@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import XcodeCloudKit
 
 @Suite("Credentials Tests")
@@ -24,10 +25,10 @@ struct CredentialsTests {
             privateKeyPath: "~/.xcodecloud/key.p8"
         )
 
-        let encoder = JSONEncoder()
+        let encoder = Foundation.JSONEncoder()
         let data = try encoder.encode(profile)
 
-        let decoder = JSONDecoder()
+        let decoder = Foundation.JSONDecoder()
         let decoded = try decoder.decode(Profile.self, from: data)
 
         #expect(decoded.keyId == profile.keyId)
@@ -45,11 +46,11 @@ struct CredentialsTests {
             ]
         )
 
-        let encoder = JSONEncoder()
+        let encoder = Foundation.JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
         let data = try encoder.encode(config)
 
-        let decoder = JSONDecoder()
+        let decoder = Foundation.JSONDecoder()
         let decoded = try decoder.decode(ConfigFile.self, from: data)
 
         #expect(decoded.defaultProfile == "work")
