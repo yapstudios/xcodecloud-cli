@@ -12,6 +12,13 @@ struct AuthCommand: ParsableCommand {
             Credentials are stored in ~/.xcodecloud/config.json with restricted permissions (600).
             You can configure multiple profiles for different accounts or teams.
 
+            CONFIG FILE FORMAT
+              {
+                "keyId": "ABC123DEF4",
+                "issuerId": "12345678-1234-1234-1234-123456789abc",
+                "privateKeyPath": "~/AuthKey_ABC123DEF4.p8"
+              }
+
             GETTING API KEYS
               You need a Team key (not an Individual key) with CI access.
 
