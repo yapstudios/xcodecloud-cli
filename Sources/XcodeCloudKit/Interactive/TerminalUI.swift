@@ -14,7 +14,8 @@ public enum TerminalUI {
         case up
         case down
         case enter
-        case quit
+        case back        // 'q' — go back one menu
+        case quit        // Ctrl+C — exit entirely
         case other
     }
 
@@ -61,7 +62,8 @@ public enum TerminalUI {
         if n == 1 {
             switch buf[0] {
             case 10, 13: return .enter       // Enter / Return
-            case 3, 113: return .quit         // Ctrl+C or 'q'
+            case 3: return .quit              // Ctrl+C — exit
+            case 113: return .back            // 'q' — go back
             default: return .other
             }
         }

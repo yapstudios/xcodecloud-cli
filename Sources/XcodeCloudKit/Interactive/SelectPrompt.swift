@@ -57,10 +57,17 @@ public enum SelectPrompt {
                 // Use writeLine here because we're done — trailing \n is fine
                 TerminalUI.writeLine("\(check) \(TerminalUI.bold(prompt)) \(TerminalUI.cyan(choices[selected].label))")
                 return choices[selected]
-            case .quit:
+            case .back:
                 TerminalUI.moveTo(row: startRow)
                 TerminalUI.clearToEnd()
                 throw SelectPromptError.cancelled
+            case .quit:
+                TerminalUI.moveTo(row: startRow)
+                TerminalUI.clearToEnd()
+                TerminalUI.showCursor()
+                TerminalUI.restoreTerminal()
+                fputs("\n", stdout)
+                exit(0)
             case .other:
                 continue
             }
