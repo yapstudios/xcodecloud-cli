@@ -27,6 +27,7 @@ struct InteractiveCommand: ParsableCommand {
         }
 
         print(TerminalUI.bold("Xcode Cloud CLI") + " " + TerminalUI.dim("v1.0.0"))
+        print(TerminalUI.dim("Tip: Run 'xcodecloud --help' for non-interactive commands."))
         print("")
 
         try topLevelMenu(client: client)
