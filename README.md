@@ -10,6 +10,37 @@ A command-line interface for [Xcode Cloud](https://developer.apple.com/xcode-clo
 - **Profile support** — manage multiple App Store Connect accounts
 - **Zero dependencies** — pure Swift, no external libraries for terminal UI
 
+## Commands
+
+```
+xcodecloud
+├── (no args)              → Interactive mode (arrow-key navigation)
+├── auth
+│   ├── init               → Set up credentials interactively
+│   ├── check              → Verify credentials are valid
+│   ├── profiles           → List configured profiles
+│   └── use <profile>      → Set the default profile
+├── products
+│   ├── list               → List all CI products
+│   └── get <id>           → Get details for a CI product
+├── workflows
+│   ├── list <product-id>  → List workflows for a CI product
+│   └── get <id>           → Get details for a workflow
+├── builds
+│   ├── list               → List build runs
+│   ├── get <id>           → Get details for a build run
+│   ├── start <workflow-id>→ Start a new build run
+│   ├── actions <build-id> → List actions for a build run
+│   ├── errors <build-id>  → Show errors, issues, and test failures
+│   ├── issues <action-id> → List issues for a build action
+│   ├── issue <id>         → Get details for a specific issue
+│   ├── tests <build-id>   → Show test results for a build run
+│   └── test-result <id>   → Get details for a specific test result
+└── artifacts
+    ├── list <action-id>   → List artifacts for a build action
+    └── download <id>      → Download an artifact
+```
+
 ## Installation
 
 ### Using Mint (recommended)
