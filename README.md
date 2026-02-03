@@ -36,7 +36,7 @@ mint install yapstudios/xcodecloud-cli@main
 
 ### Building from source
 
-Requires Swift 6.0+ and macOS 13+.
+Requires Swift 6.0+ to build. Runs on macOS 12 (Monterey) or later.
 
 ```bash
 git clone https://github.com/yapstudios/xcodecloud-cli.git

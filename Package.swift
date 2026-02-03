@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "xcodecloud-cli",
     platforms: [
-        .macOS(.v13)
+        .macOS(.v12)
     ],
     products: [
         .executable(name: "xcodecloud", targets: ["xcodecloud"])
