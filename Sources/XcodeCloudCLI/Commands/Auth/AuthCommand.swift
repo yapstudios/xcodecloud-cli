@@ -13,9 +13,11 @@ struct AuthCommand: ParsableCommand {
             You can configure multiple profiles for different accounts or teams.
 
             GETTING API KEYS
-              1. Go to App Store Connect > Users and Access > Keys
-              2. Click the "+" button to create a new key
-              3. Give it a name and select the appropriate access level
+              You need a Team key (not an Individual key) with CI access.
+
+              1. Go to App Store Connect > Users and Access > Integrations > App Store Connect API
+              2. Click "Generate API Key" under Team Keys
+              3. Give it a name and select Admin, App Manager, or Developer role
               4. Download the .p8 file (you can only download it once!)
               5. Note the Key ID and Issuer ID shown on the page
 
@@ -63,8 +65,8 @@ struct AuthInitCommand: ParsableCommand {
 
         print("Setting up Xcode Cloud CLI credentials")
         print("=======================================\n")
-        print("You'll need your App Store Connect API credentials.")
-        print("Create or find them at:")
+        print("You'll need an App Store Connect API Team key (not Individual).")
+        print("Create one at:")
         print("  https://appstoreconnect.apple.com/access/integrations/api\n")
 
         // Get Key ID

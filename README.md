@@ -39,7 +39,15 @@ Create a config file:
 
 Or run `xcodecloud auth init` to set up credentials interactively.
 
-You can generate an API key in [App Store Connect](https://appstoreconnect.apple.com/access/integrations/api) under Users and Access > Integrations > App Store Connect API.
+### Getting an API Key
+
+You need a **Team key** (not an Individual key) with CI access:
+
+1. Go to [App Store Connect](https://appstoreconnect.apple.com/access/integrations/api) > Users and Access > Integrations > App Store Connect API
+2. Under **Team Keys**, click "Generate API Key"
+3. Select Admin, App Manager, or Developer role (all have CI access)
+4. Download the `.p8` file — you can only download it once
+5. Note the Key ID and Issuer ID shown on the page
 
 ## Usage
 
