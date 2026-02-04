@@ -79,8 +79,15 @@ public enum Endpoint {
             if let cursor = cursor {
                 items.append(URLQueryItem(name: "cursor", value: cursor))
             }
-        case .listWorkflows(_, let limit, let cursor),
-             .listBuildRuns(_, let limit, let cursor):
+        case .listWorkflows(_, let limit, let cursor):
+            if let limit = limit {
+                items.append(URLQueryItem(name: "limit", value: String(limit)))
+            }
+            if let cursor = cursor {
+                items.append(URLQueryItem(name: "cursor", value: cursor))
+            }
+        case .listBuildRuns(_, let limit, let cursor):
+            items.append(URLQueryItem(name: "sort", value: "-number"))
             if let limit = limit {
                 items.append(URLQueryItem(name: "limit", value: String(limit)))
             }
