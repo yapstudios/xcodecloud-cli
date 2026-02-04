@@ -66,6 +66,9 @@ struct BuildsListCommand: ParsableCommand {
     @Option(name: .long, help: "Maximum number of results (default: 25)")
     var limit: Int?
 
+    @Flag(name: .long, help: "Fetch all pages of results")
+    var all: Bool = false
+
     mutating func run() throws {
         let client: APIClient
         do {
@@ -78,6 +81,7 @@ struct BuildsListCommand: ParsableCommand {
         let workflowId = workflow
         let limitVal = limit
         let verbose = options.verbose
+        let fetchAll = all
 
         do {
             if let wfId = workflowId {
@@ -87,7 +91,10 @@ struct BuildsListCommand: ParsableCommand {
             }
 
             let response = try runAsync {
-                try await client.listBuildRuns(workflowId: workflowId, limit: limitVal)
+                if fetchAll {
+                    return try await client.listAllBuildRuns(workflowId: workflowId, limit: limitVal)
+                }
+                return try await client.listBuildRuns(workflowId: workflowId, limit: limitVal)
             }
 
             let formatter = options.outputFormatter()

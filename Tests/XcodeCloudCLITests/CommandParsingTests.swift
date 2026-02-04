@@ -115,6 +115,13 @@ struct CommandParsingTests {
         #expect(listCmd.limit == 50)
     }
 
+    @Test("Products list with all flag")
+    func testProductsListAll() throws {
+        let command = try XcodeCloud.parseAsRoot(["products", "list", "--all"])
+        let listCmd = command as! ProductsListCommand
+        #expect(listCmd.all == true)
+    }
+
     @Test("Products list with output format")
     func testProductsListWithFormat() throws {
         let command = try XcodeCloud.parseAsRoot(["products", "list", "-o", "table"])
@@ -175,6 +182,13 @@ struct CommandParsingTests {
     func testBuildsList() throws {
         let command = try XcodeCloud.parseAsRoot(["builds", "list"])
         #expect(command is BuildsListCommand)
+    }
+
+    @Test("Builds list with all flag")
+    func testBuildsListAll() throws {
+        let command = try XcodeCloud.parseAsRoot(["builds", "list", "--all"])
+        let listCmd = command as! BuildsListCommand
+        #expect(listCmd.all == true)
     }
 
     @Test("Builds list with workflow filter")

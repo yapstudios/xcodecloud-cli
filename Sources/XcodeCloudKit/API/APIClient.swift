@@ -103,6 +103,69 @@ public actor APIClient {
         try FileManager.default.moveItem(at: tempURL, to: destination)
     }
 
+    // MARK: - Pagination
+
+    /// Fetch the next page of results using a `next` URL from PageLinks.
+    public func fetchNextPage<T: Codable & Sendable>(_ nextURL: String) async throws -> APIListResponse<T> {
+        guard let url = URL(string: nextURL) else {
+            throw CLIError.apiError(statusCode: 0, message: "Invalid next page URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let token = try await authProvider.getToken()
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return try await execute(request)
+    }
+
+    /// Fetch all pages for a list endpoint, accumulating all data.
+    public func listAllProducts(limit: Int? = nil) async throws -> APIListResponse<CiProduct> {
+        try await paginate { cursor in
+            try await self.listProducts(limit: limit, cursor: cursor)
+        }
+    }
+
+    public func listAllWorkflows(productId: String, limit: Int? = nil) async throws -> APIListResponse<CiWorkflow> {
+        try await paginate { cursor in
+            try await self.listWorkflows(productId: productId, limit: limit, cursor: cursor)
+        }
+    }
+
+    public func listAllBuildRuns(workflowId: String? = nil, limit: Int? = nil) async throws -> APIListResponse<CiBuildRun> {
+        try await paginate { cursor in
+            try await self.listBuildRuns(workflowId: workflowId, limit: limit, cursor: cursor)
+        }
+    }
+
+    /// Generic paginator that follows `next` links until exhausted.
+    private func paginate<T: Codable & Sendable>(
+        fetch: (String?) async throws -> APIListResponse<T>
+    ) async throws -> APIListResponse<T> {
+        var allData: [T] = []
+        var allIncluded: [IncludedResource]? = nil
+        var response = try await fetch(nil)
+        allData.append(contentsOf: response.data)
+        if let included = response.included {
+            allIncluded = (allIncluded ?? []) + included
+        }
+
+        while let nextURL = response.links?.next {
+            let nextResponse: APIListResponse<T> = try await fetchNextPage(nextURL)
+            allData.append(contentsOf: nextResponse.data)
+            if let included = nextResponse.included {
+                allIncluded = (allIncluded ?? []) + included
+            }
+            response = nextResponse
+        }
+
+        return APIListResponse(
+            data: allData,
+            included: allIncluded,
+            links: nil,
+            meta: response.meta
+        )
+    }
+
     // MARK: - Private
 
     private func request<T: Codable & Sendable>(_ endpoint: Endpoint) async throws -> T {

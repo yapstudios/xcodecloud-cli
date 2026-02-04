@@ -16,6 +16,13 @@ public struct APIListResponse<T: Codable & Sendable>: Codable, Sendable {
     public let included: [IncludedResource]?
     public let links: PageLinks?
     public let meta: ResponseMeta?
+
+    public init(data: [T], included: [IncludedResource]?, links: PageLinks?, meta: ResponseMeta?) {
+        self.data = data
+        self.included = included
+        self.links = links
+        self.meta = meta
+    }
 }
 
 /// Included resource (polymorphic)

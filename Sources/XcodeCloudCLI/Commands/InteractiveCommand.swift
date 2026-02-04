@@ -107,14 +107,22 @@ struct InteractiveCommand: ParsableCommand {
             return
         }
 
-        let choices = response.data.sorted { ($0.attributes?.name ?? "") < ($1.attributes?.name ?? "") }.map { product in
-            let name = product.attributes?.name ?? "Unknown"
-            let bundleId = product.bundleId(from: response.included)
-            let desc = bundleId ?? product.attributes?.productType ?? ""
-            return Choice(label: name, value: product.id, description: "- \(desc)")
-        } + [Choice(label: "Back", value: "back")]
+        var allProducts = response.data
+        var allIncluded = response.included
+        var nextURL = response.links?.next
 
         while true {
+            var choices = allProducts.sorted { ($0.attributes?.name ?? "") < ($1.attributes?.name ?? "") }.map { product in
+                let name = product.attributes?.name ?? "Unknown"
+                let bundleId = product.bundleId(from: allIncluded)
+                let desc = bundleId ?? product.attributes?.productType ?? ""
+                return Choice(label: name, value: product.id, description: "- \(desc)")
+            }
+            if nextURL != nil {
+                choices.append(Choice(label: "Load more...", value: "loadmore"))
+            }
+            choices.append(Choice(label: "Back", value: "back"))
+
             let choice: Choice
             do {
                 choice = try SelectPrompt.run(prompt: "Select a product:", choices: choices)
@@ -122,7 +130,19 @@ struct InteractiveCommand: ParsableCommand {
                 return
             }
 
-            guard choice.value != "back" else { return }
+            if choice.value == "back" { return }
+
+            if choice.value == "loadmore", let url = nextURL {
+                let nextResponse: APIListResponse<CiProduct> = try withLoading("Loading more...") {
+                    try runAsync { try await client.fetchNextPage(url) }
+                }
+                allProducts.append(contentsOf: nextResponse.data)
+                if let included = nextResponse.included {
+                    allIncluded = (allIncluded ?? []) + included
+                }
+                nextURL = nextResponse.links?.next
+                continue
+            }
 
             try productActionsMenu(client: client, productId: choice.value, productName: choice.label)
         }
@@ -164,13 +184,20 @@ struct InteractiveCommand: ParsableCommand {
             return
         }
 
-        let choices = response.data.map { workflow in
-            let name = workflow.attributes?.name ?? "Unknown"
-            let enabled = workflow.attributes?.isEnabled == true ? "" : " (disabled)"
-            return Choice(label: name, value: workflow.id, description: enabled.isEmpty ? nil : enabled)
-        } + [Choice(label: "Back", value: "back")]
+        var allWorkflows = response.data
+        var nextURL = response.links?.next
 
         while true {
+            var choices = allWorkflows.map { workflow in
+                let name = workflow.attributes?.name ?? "Unknown"
+                let enabled = workflow.attributes?.isEnabled == true ? "" : " (disabled)"
+                return Choice(label: name, value: workflow.id, description: enabled.isEmpty ? nil : enabled)
+            }
+            if nextURL != nil {
+                choices.append(Choice(label: "Load more...", value: "loadmore"))
+            }
+            choices.append(Choice(label: "Back", value: "back"))
+
             let choice: Choice
             do {
                 choice = try SelectPrompt.run(prompt: "Select a workflow:", choices: choices)
@@ -178,7 +205,16 @@ struct InteractiveCommand: ParsableCommand {
                 return
             }
 
-            guard choice.value != "back" else { return }
+            if choice.value == "back" { return }
+
+            if choice.value == "loadmore", let url = nextURL {
+                let nextResponse: APIListResponse<CiWorkflow> = try withLoading("Loading more...") {
+                    try runAsync { try await client.fetchNextPage(url) }
+                }
+                allWorkflows.append(contentsOf: nextResponse.data)
+                nextURL = nextResponse.links?.next
+                continue
+            }
 
             try workflowActionsMenu(client: client, workflowId: choice.value, workflowName: choice.label)
         }
@@ -224,18 +260,25 @@ struct InteractiveCommand: ParsableCommand {
             return
         }
 
-        let sorted = response.data.sorted { ($0.attributes?.number ?? 0) > ($1.attributes?.number ?? 0) }
-        let choices = sorted.map { build in
-            let number = build.attributes?.number.map { "#\($0)" } ?? ""
-            let status = build.attributes?.completionStatus ?? build.attributes?.executionProgress ?? "Unknown"
-            let commitRaw = build.attributes?.sourceCommit?.message ?? ""
-            let commit = commitRaw.components(separatedBy: .newlines).first.map { String($0.prefix(40)) } ?? ""
-            let label = "\(number) \(status)"
-            let desc = commit.isEmpty ? nil : "- \(commit)"
-            return Choice(label: label, value: build.id, description: desc)
-        } + [Choice(label: "Back", value: "back")]
+        var allBuilds = response.data
+        var nextURL = response.links?.next
 
         while true {
+            let sorted = allBuilds.sorted { ($0.attributes?.number ?? 0) > ($1.attributes?.number ?? 0) }
+            var choices = sorted.map { build in
+                let number = build.attributes?.number.map { "#\($0)" } ?? ""
+                let status = build.attributes?.completionStatus ?? build.attributes?.executionProgress ?? "Unknown"
+                let commitRaw = build.attributes?.sourceCommit?.message ?? ""
+                let commit = commitRaw.components(separatedBy: .newlines).first.map { String($0.prefix(40)) } ?? ""
+                let label = "\(number) \(status)"
+                let desc = commit.isEmpty ? nil : "- \(commit)"
+                return Choice(label: label, value: build.id, description: desc)
+            }
+            if nextURL != nil {
+                choices.append(Choice(label: "Load more...", value: "loadmore"))
+            }
+            choices.append(Choice(label: "Back", value: "back"))
+
             let choice: Choice
             do {
                 choice = try SelectPrompt.run(prompt: "Select a build:", choices: choices)
@@ -243,7 +286,16 @@ struct InteractiveCommand: ParsableCommand {
                 return
             }
 
-            guard choice.value != "back" else { return }
+            if choice.value == "back" { return }
+
+            if choice.value == "loadmore", let url = nextURL {
+                let nextResponse: APIListResponse<CiBuildRun> = try withLoading("Loading more...") {
+                    try runAsync { try await client.fetchNextPage(url) }
+                }
+                allBuilds.append(contentsOf: nextResponse.data)
+                nextURL = nextResponse.links?.next
+                continue
+            }
 
             try buildActionsMenu(client: client, buildId: choice.value, buildLabel: choice.label)
         }

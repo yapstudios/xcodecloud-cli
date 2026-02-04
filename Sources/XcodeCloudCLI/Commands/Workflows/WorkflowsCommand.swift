@@ -41,6 +41,9 @@ struct WorkflowsListCommand: ParsableCommand {
     @Option(name: .long, help: "Maximum number of results (default: 25)")
     var limit: Int?
 
+    @Flag(name: .long, help: "Fetch all pages of results")
+    var all: Bool = false
+
     mutating func run() throws {
         let client: APIClient
         do {
@@ -53,11 +56,15 @@ struct WorkflowsListCommand: ParsableCommand {
         let prodId = productId
         let limitVal = limit
         let verbose = options.verbose
+        let fetchAll = all
 
         do {
             printVerbose("Fetching workflows for product \(prodId)...", verbose: verbose)
             let response = try runAsync {
-                try await client.listWorkflows(productId: prodId, limit: limitVal)
+                if fetchAll {
+                    return try await client.listAllWorkflows(productId: prodId, limit: limitVal)
+                }
+                return try await client.listWorkflows(productId: prodId, limit: limitVal)
             }
 
             let formatter = options.outputFormatter()
