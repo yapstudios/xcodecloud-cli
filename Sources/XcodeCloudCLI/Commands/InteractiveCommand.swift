@@ -18,20 +18,49 @@ struct InteractiveCommand: ParsableCommand {
             throw ExitCode.failure
         }
 
-        let client: APIClient
-        do {
-            client = try options.apiClient()
-        } catch let error as CLIError {
-            printError(error.localizedDescription)
-            throw ExitCode(rawValue: error.exitCode)
-        }
-
         print(TerminalUI.bold("Xcode Cloud CLI") + " " + TerminalUI.dim("v\(XcodeCloud.configuration.version)"))
         print(TerminalUI.dim("Tip: Run 'xcodecloud --help' for non-interactive commands."))
         print(TerminalUI.dim("Docs: https://github.com/yapstudios/xcodecloud-cli"))
         print("")
 
+        let client: APIClient
+        do {
+            client = try options.apiClient()
+        } catch is CLIError {
+            // No credentials — offer to set them up
+            let choice: Choice
+            do {
+                choice = try SelectPrompt.run(
+                    prompt: "No credentials configured. Set up now?",
+                    choices: [
+                        Choice(label: "Set up credentials", value: "setup"),
+                        Choice(label: "Exit", value: "exit"),
+                    ]
+                )
+            } catch is SelectPromptError {
+                return
+            }
+
+            guard choice.value == "setup" else { return }
+
+            try runAuthInit()
+
+            // Try again with the new credentials
+            do {
+                client = try options.apiClient()
+            } catch let error as CLIError {
+                printError(error.localizedDescription)
+                throw ExitCode(rawValue: error.exitCode)
+            }
+        }
+
         try topLevelMenu(client: client)
+    }
+
+    private func runAuthInit() throws {
+        var initCmd = AuthInitCommand()
+        try initCmd.run()
+        print("")
     }
 
     // MARK: - Loading helper

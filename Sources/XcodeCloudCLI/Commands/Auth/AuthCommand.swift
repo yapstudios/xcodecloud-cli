@@ -125,7 +125,20 @@ struct AuthInitCommand: ParsableCommand {
             print("  (set as default)")
         }
 
-        print("\nRun 'xcodecloud auth check' to verify your credentials work.")
+        // Auto-verify credentials
+        print("\nVerifying credentials...")
+        let credentials = try newProfile.toCredentials()
+        let client = APIClient(credentials: credentials)
+        do {
+            let response = try runAsync {
+                try await client.listProducts(limit: 1)
+            }
+            let total = response.meta?.paging?.total ?? response.data.count
+            print("Credentials are valid. Found \(total) CI product(s).")
+        } catch {
+            printError("Credentials were saved but verification failed: \(error.localizedDescription)")
+            print("Check your Key ID, Issuer ID, and private key file.")
+        }
     }
 }
 

@@ -65,9 +65,16 @@ public struct CredentialResolver: Sendable {
         }
 
         throw CLIError.missingCredentials(
-            "No credentials found. Set via --key-id/--issuer-id/--private-key-path, " +
-            "environment variables (XCODE_CLOUD_*), or config file (~/.xcodecloud/config.json). " +
-            "Run 'xcodecloud auth init' to set up credentials."
+            """
+            No credentials configured.
+
+            Run 'xcodecloud auth init' to set up credentials interactively.
+
+            Credentials can also be provided via:
+              - Command-line flags (--key-id, --issuer-id, --private-key-path)
+              - Environment variables (XCODE_CLOUD_KEY_ID, XCODE_CLOUD_ISSUER_ID, XCODE_CLOUD_PRIVATE_KEY_PATH)
+              - Config file (~/.xcodecloud/config.json)
+            """
         )
     }
 
