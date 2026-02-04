@@ -31,6 +31,7 @@ xcodecloud
 │   ├── get <id>           → Get details for a build run
 │   ├── start <workflow-id>→ Start a new build run
 │   ├── watch <build-id>  → Watch a build until completion
+│   ├── logs <build-id>   → List or download build logs
 │   ├── actions <build-id> → List actions for a build run
 │   ├── errors <build-id>  → Show errors, issues, and test failures
 │   ├── issues <action-id> → List issues for a build action
@@ -283,6 +284,15 @@ xcodecloud builds watch <build-id>
 
 # Watch with faster polling
 xcodecloud builds watch <build-id> --interval 5
+
+# List build logs
+xcodecloud builds logs <build-id>
+
+# Download build logs
+xcodecloud builds logs <build-id> --download
+
+# Download logs to a specific directory
+xcodecloud builds logs <build-id> --download --dir ./logs
 
 # Show build errors (compiler issues + test failures)
 xcodecloud builds errors <build-id>

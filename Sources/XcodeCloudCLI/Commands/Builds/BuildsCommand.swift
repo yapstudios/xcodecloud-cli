@@ -41,6 +41,7 @@ struct BuildsCommand: ParsableCommand {
             BuildsGetCommand.self,
             BuildsStartCommand.self,
             BuildsWatchCommand.self,
+            BuildsLogsCommand.self,
             BuildsActionsCommand.self,
             BuildsErrorsCommand.self,
             BuildsIssuesCommand.self,
@@ -416,6 +417,170 @@ struct BuildsWatchCommand: ParsableCommand {
             throw ExitCode(rawValue: error.exitCode)
         }
     }
+}
+
+struct BuildsLogsCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "logs",
+        abstract: "List or download build logs",
+        discussion: """
+            Lists log bundle artifacts for all actions in a build run.
+            Use --download to download them.
+
+            EXAMPLES
+              List logs for a build:
+                $ xcodecloud builds logs <build-id>
+
+              Download all logs:
+                $ xcodecloud builds logs <build-id> --download
+
+              Download logs to a specific directory:
+                $ xcodecloud builds logs <build-id> --download --dir ./logs
+            """
+    )
+
+    @OptionGroup var options: GlobalOptions
+
+    @Argument(help: "Build run ID")
+    var buildId: String
+
+    @Flag(name: .long, help: "Download the log bundles")
+    var download: Bool = false
+
+    @Option(name: [.customShort("d"), .customLong("dir")], help: "Output directory for downloads (default: current directory)")
+    var outputDir: String = "."
+
+    mutating func run() throws {
+        let client: APIClient
+        do {
+            client = try options.apiClient()
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
+            throw ExitCode(rawValue: error.exitCode)
+        }
+
+        let bId = buildId
+        let verbose = options.verbose
+        let quiet = options.quiet
+        let shouldDownload = download
+        let outDir = outputDir
+
+        do {
+            // Fetch build info for display
+            printVerbose("Fetching build \(bId)...", verbose: verbose)
+            let buildResponse = try runAsync {
+                try await client.getBuildRun(id: bId)
+            }
+            let buildNumber = buildResponse.data.attributes?.number.map { "#\($0)" } ?? bId
+
+            // Fetch all actions
+            printVerbose("Fetching actions for build \(bId)...", verbose: verbose)
+            let actionsResponse = try runAsync {
+                try await client.listBuildActions(buildRunId: bId)
+            }
+
+            // Collect log artifacts grouped by action
+            struct LogEntry {
+                let action: CiBuildAction
+                let artifact: CiArtifact
+            }
+
+            var logEntries: [LogEntry] = []
+
+            for action in actionsResponse.data {
+                printVerbose("Fetching artifacts for action \(action.id)...", verbose: verbose)
+                let artifactsResponse = try runAsync {
+                    try await client.listArtifacts(buildActionId: action.id)
+                }
+                let logs = artifactsResponse.data.filter {
+                    $0.attributes?.fileType == "LOG_BUNDLE"
+                }
+                for artifact in logs {
+                    logEntries.append(LogEntry(action: action, artifact: artifact))
+                }
+            }
+
+            guard !logEntries.isEmpty else {
+                if !quiet {
+                    print("No logs found for build \(buildNumber)")
+                }
+                return
+            }
+
+            if shouldDownload {
+                let expandedOutputDir = (outDir as NSString).expandingTildeInPath
+                try FileManager.default.createDirectory(
+                    at: URL(fileURLWithPath: expandedOutputDir),
+                    withIntermediateDirectories: true
+                )
+
+                if !quiet {
+                    print("Downloading logs for build \(buildNumber)...")
+                }
+
+                for entry in logEntries {
+                    guard let urlString = entry.artifact.attributes?.downloadUrl,
+                          let url = URL(string: urlString) else {
+                        continue
+                    }
+
+                    let fileName = entry.artifact.attributes?.fileName ?? "\(entry.artifact.id).zip"
+                    let destinationURL = URL(fileURLWithPath: expandedOutputDir).appendingPathComponent(fileName)
+
+                    if !quiet {
+                        let size = entry.artifact.attributes?.fileSize.map { formatFileSize($0) } ?? ""
+                        print("  \(fileName)  (\(size))")
+                    }
+
+                    printVerbose("Downloading from \(urlString)...", verbose: verbose)
+                    try runAsync {
+                        try await client.downloadArtifact(url: url, to: destinationURL)
+                    }
+                }
+
+                if !quiet {
+                    print("Downloaded \(logEntries.count) file(s) to \(expandedOutputDir)")
+                }
+            } else {
+                // List mode
+                let formatter = options.outputFormatter()
+
+                if options.output == .json {
+                    let artifacts = logEntries.map { $0.artifact }
+                    let output = try formatter.formatRawJSON(artifacts)
+                    print(output)
+                } else {
+                    print("Build \(buildNumber) - Logs:")
+                    for entry in logEntries {
+                        let actionName = entry.action.attributes?.name ?? "Unknown"
+                        let fileName = entry.artifact.attributes?.fileName ?? "Unknown"
+                        let size = entry.artifact.attributes?.fileSize.map { formatFileSize($0) } ?? ""
+                        print("  \(actionName)")
+                        print("    \(fileName)  (\(size))")
+                    }
+                }
+            }
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
+            throw ExitCode(rawValue: error.exitCode)
+        }
+    }
+}
+
+private func formatFileSize(_ bytes: Int) -> String {
+    let units = ["B", "KB", "MB", "GB"]
+    var size = Double(bytes)
+    var unitIndex = 0
+
+    while size >= 1024 && unitIndex < units.count - 1 {
+        size /= 1024
+        unitIndex += 1
+    }
+
+    if unitIndex == 0 {
+        return "\(bytes) B"
+    }
+    return String(format: "%.1f %@", size, units[unitIndex])
 }
 
 struct BuildsActionsCommand: ParsableCommand {

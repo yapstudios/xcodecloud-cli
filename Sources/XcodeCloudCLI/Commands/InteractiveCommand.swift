@@ -259,6 +259,7 @@ struct InteractiveCommand: ParsableCommand {
                         Choice(label: "Watch build", value: "watch"),
                         Choice(label: "View details", value: "details"),
                         Choice(label: "Show errors", value: "errors"),
+                        Choice(label: "Download logs", value: "logs"),
                         Choice(label: "List artifacts", value: "artifacts"),
                         Choice(label: "Back", value: "back"),
                     ]
@@ -274,6 +275,8 @@ struct InteractiveCommand: ParsableCommand {
                 try showBuildDetails(client: client, buildId: buildId)
             case "errors":
                 try showBuildErrors(client: client, buildId: buildId)
+            case "logs":
+                try downloadLogs(client: client, buildId: buildId)
             case "artifacts":
                 try artifactsMenu(client: client, buildId: buildId)
             default:
@@ -452,6 +455,70 @@ struct InteractiveCommand: ParsableCommand {
 
             sleep(10)
         }
+    }
+
+    // MARK: - Logs
+
+    private func downloadLogs(client: APIClient, buildId: String) throws {
+        let actionsResponse = try withLoading("Fetching logs...") {
+            try runAsync { try await client.listBuildActions(buildRunId: buildId) }
+        }
+
+        var logArtifacts: [(action: CiBuildAction, artifact: CiArtifact)] = []
+        for action in actionsResponse.data {
+            let artifactsResponse = try runAsync {
+                try await client.listArtifacts(buildActionId: action.id)
+            }
+            let logs = artifactsResponse.data.filter { $0.attributes?.fileType == "LOG_BUNDLE" }
+            for artifact in logs {
+                logArtifacts.append((action: action, artifact: artifact))
+            }
+        }
+
+        guard !logArtifacts.isEmpty else {
+            print("No logs found for this build.")
+            print("")
+            return
+        }
+
+        let choices = logArtifacts.map { entry in
+            let actionName = entry.action.attributes?.name ?? "Unknown"
+            let fileName = entry.artifact.attributes?.fileName ?? "Unknown"
+            let size = entry.artifact.attributes?.fileSize.map { formatSize($0) } ?? ""
+            return Choice(label: "\(actionName) - \(fileName)", value: entry.artifact.id, description: "- \(size)")
+        } + [Choice(label: "Download all", value: "all"),
+             Choice(label: "Back", value: "back")]
+
+        let choice: Choice
+        do {
+            choice = try SelectPrompt.run(prompt: "Select a log to download:", choices: choices)
+        } catch is SelectPromptError {
+            return
+        }
+
+        guard choice.value != "back" else { return }
+
+        let toDownload: [(action: CiBuildAction, artifact: CiArtifact)]
+        if choice.value == "all" {
+            toDownload = logArtifacts
+        } else {
+            toDownload = logArtifacts.filter { $0.artifact.id == choice.value }
+        }
+
+        for entry in toDownload {
+            guard let urlString = entry.artifact.attributes?.downloadUrl,
+                  let url = URL(string: urlString) else { continue }
+
+            let fileName = entry.artifact.attributes?.fileName ?? "artifact"
+            let dest = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(fileName)
+
+            try withLoading("Downloading \(fileName)...") {
+                try runAsync { try await client.downloadArtifact(url: url, to: dest) }
+            }
+
+            print("Downloaded: \(dest.path)")
+        }
+        print("")
     }
 
     // MARK: - Artifacts

@@ -165,6 +165,7 @@ struct CommandParsingTests {
         #expect(help.contains("list"))
         #expect(help.contains("get"))
         #expect(help.contains("start"))
+        #expect(help.contains("logs"))
         #expect(help.contains("actions"))
         #expect(help.contains("errors"))
         #expect(help.contains("tests"))
@@ -229,6 +230,24 @@ struct CommandParsingTests {
         let command = try XcodeCloud.parseAsRoot(["builds", "watch", "build123", "--interval", "5"])
         let watchCmd = command as! BuildsWatchCommand
         #expect(watchCmd.interval == 5)
+    }
+
+    @Test("Builds logs parses with build ID")
+    func testBuildsLogs() throws {
+        let command = try XcodeCloud.parseAsRoot(["builds", "logs", "build123"])
+        #expect(command is BuildsLogsCommand)
+        let logsCmd = command as! BuildsLogsCommand
+        #expect(logsCmd.buildId == "build123")
+        #expect(logsCmd.download == false)
+        #expect(logsCmd.outputDir == ".")
+    }
+
+    @Test("Builds logs parses with download flag and dir")
+    func testBuildsLogsDownload() throws {
+        let command = try XcodeCloud.parseAsRoot(["builds", "logs", "build123", "--download", "--dir", "./logs"])
+        let logsCmd = command as! BuildsLogsCommand
+        #expect(logsCmd.download == true)
+        #expect(logsCmd.outputDir == "./logs")
     }
 
     @Test("Builds actions parses with build ID")
