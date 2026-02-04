@@ -18,15 +18,18 @@ struct InteractiveCommand: ParsableCommand {
             throw ExitCode.failure
         }
 
-        print(TerminalUI.bold("Xcode Cloud CLI") + " " + TerminalUI.dim("v\(XcodeCloud.configuration.version)"))
-        print(TerminalUI.dim("Tip: Run 'xcodecloud --help' for non-interactive commands."))
-        print(TerminalUI.dim("Docs: https://github.com/yapstudios/xcodecloud-cli"))
-        print("")
+        var activeProfile: String? = options.profile
 
-        let client: APIClient
+        // Initial credential resolution
+        var client: APIClient
         do {
             client = try options.apiClient()
+            if activeProfile == nil {
+                activeProfile = resolveActiveProfileName()
+            }
         } catch is CLIError {
+            printBanner()
+
             // No credentials — offer to set them up
             let choice: Choice
             do {
@@ -48,18 +51,63 @@ struct InteractiveCommand: ParsableCommand {
             // Try again with the new credentials
             do {
                 client = try options.apiClient()
+                activeProfile = resolveActiveProfileName()
             } catch let error as CLIError {
                 printError(error.localizedDescription)
                 throw ExitCode(rawValue: error.exitCode)
             }
         }
 
-        try topLevelMenu(client: client)
+        // Main loop — re-enters when switching profiles
+        while true {
+            printBanner()
+
+            let switchTo = try topLevelMenu(client: client, activeProfile: activeProfile)
+
+            guard let newProfile = switchTo else { return }
+
+            // Switch to the new profile
+            do {
+                client = try options.apiClient(profile: newProfile)
+                activeProfile = newProfile
+            } catch let error as CLIError {
+                printError(error.localizedDescription)
+            }
+        }
     }
 
-    private func runAuthInit() throws {
-        var initCmd = try AuthInitCommand.parseAsRoot([]) as! AuthInitCommand
-        try initCmd.run()
+    private func printBanner() {
+        print(TerminalUI.bold("Xcode Cloud CLI") + " " + TerminalUI.dim("v\(XcodeCloud.configuration.version)"))
+        print(TerminalUI.dim("Tip: Run 'xcodecloud --help' for non-interactive commands."))
+        print(TerminalUI.dim("Docs: https://github.com/yapstudios/xcodecloud-cli"))
+        print("")
+    }
+
+    private func resolveActiveProfileName() -> String? {
+        let resolver = CredentialResolver()
+        if let config = try? resolver.loadConfig(from: CredentialResolver.localConfigPath) {
+            return config.defaultProfile
+        }
+        if let config = try? resolver.loadConfig(from: CredentialResolver.globalConfigPath) {
+            return config.defaultProfile
+        }
+        return nil
+    }
+
+    private func hasMultipleProfiles() -> Bool {
+        let resolver = CredentialResolver()
+        let localCount = (try? resolver.loadConfig(from: CredentialResolver.localConfigPath))?.profiles.count ?? 0
+        let globalCount = (try? resolver.loadConfig(from: CredentialResolver.globalConfigPath))?.profiles.count ?? 0
+        return (localCount + globalCount) > 1
+    }
+
+    private func runAuthInit(profile: String = "default") throws {
+        var initCmd = try AuthInitCommand.parseAsRoot(["--profile", profile]) as! AuthInitCommand
+        do {
+            try initCmd.run()
+        } catch is ExitCode {
+            // Don't let auth init failures exit interactive mode
+        }
         print("")
     }
 
@@ -79,29 +127,34 @@ struct InteractiveCommand: ParsableCommand {
 
     // MARK: - Top Level
 
-    private func topLevelMenu(client: APIClient) throws {
+    /// Returns a profile name to switch to, or nil to exit
+    private func topLevelMenu(client: APIClient, activeProfile: String?) throws -> String? {
         while true {
+            let profileName = activeProfile ?? "default"
+
             let choice: Choice
             do {
                 choice = try SelectPrompt.run(
-                    prompt: "What would you like to do?",
+                    prompt: "What would you like to do? (profile: \(profileName))",
                     choices: [
                         Choice(label: "Products", value: "products", description: "- Browse apps & frameworks"),
-                        Choice(label: "Auth", value: "auth", description: "- Check credentials"),
+                        Choice(label: "Auth", value: "auth", description: "- Profiles, credentials"),
                         Choice(label: "Exit", value: "exit"),
                     ]
                 )
             } catch is SelectPromptError {
-                return
+                return nil
             }
 
             switch choice.value {
             case "products":
                 try productsMenu(client: client)
             case "auth":
-                try authCheck(client: client)
+                if let switchTo = try authMenu(client: client, activeProfile: activeProfile) {
+                    return switchTo
+                }
             case "exit":
-                return
+                return nil
             default:
                 break
             }
@@ -109,6 +162,65 @@ struct InteractiveCommand: ParsableCommand {
     }
 
     // MARK: - Auth
+
+    /// Returns a profile name to switch to, or nil to stay
+    private func authMenu(client: APIClient, activeProfile: String?) throws -> String? {
+        while true {
+            var choices = [
+                Choice(label: "Check credentials", value: "check"),
+            ]
+
+            let resolver = CredentialResolver()
+            let localConfig = try? resolver.loadConfig(from: CredentialResolver.localConfigPath)
+            let globalConfig = try? resolver.loadConfig(from: CredentialResolver.globalConfigPath)
+            let allProfiles = (localConfig?.profiles ?? [:]).merging(globalConfig?.profiles ?? [:]) { local, _ in local }
+
+            if allProfiles.count > 1 {
+                choices.insert(Choice(label: "Switch profile", value: "switch", description: "- Current: \(activeProfile ?? "default")"), at: 0)
+            }
+            choices.append(Choice(label: "Add profile", value: "add"))
+            choices.append(Choice(label: "Back", value: "back"))
+
+            let choice: Choice
+            do {
+                choice = try SelectPrompt.run(prompt: "Auth -", choices: choices)
+            } catch is SelectPromptError {
+                return nil
+            }
+
+            switch choice.value {
+            case "switch":
+                let profileNames = allProfiles.keys.sorted()
+                let profileChoices = profileNames.map { name in
+                    let marker = name == activeProfile ? " *" : ""
+                    return Choice(label: "\(name)\(marker)", value: name)
+                } + [Choice(label: "Back", value: "back")]
+
+                let picked: Choice
+                do {
+                    picked = try SelectPrompt.run(prompt: "Select a profile:", choices: profileChoices)
+                } catch is SelectPromptError {
+                    continue
+                }
+
+                if picked.value != "back" && picked.value != activeProfile {
+                    return picked.value
+                }
+            case "check":
+                try authCheck(client: client)
+            case "add":
+                print("Profile name:")
+                print("> ", terminator: "")
+                if let name = readLine()?.trimmingCharacters(in: .whitespaces), !name.isEmpty {
+                    try runAuthInit(profile: name)
+                } else {
+                    print("Profile name is required.\n")
+                }
+            default:
+                return nil
+            }
+        }
+    }
 
     private func authCheck(client: APIClient) throws {
         do {

@@ -55,6 +55,15 @@ struct GlobalOptions: ParsableArguments {
         let credentials = try resolver.resolve(options: credentialOptions())
         return APIClient(credentials: credentials)
     }
+
+    /// Creates an API client for a specific profile name
+    func apiClient(profile: String) throws -> APIClient {
+        var opts = credentialOptions()
+        opts.profile = profile
+        let resolver = CredentialResolver()
+        let credentials = try resolver.resolve(options: opts)
+        return APIClient(credentials: credentials)
+    }
 }
 
 extension OutputFormat: ExpressibleByArgument {}
