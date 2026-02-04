@@ -38,7 +38,7 @@ public struct XcodeCloud: ParsableCommand {
               Get build status with table output:
                 $ xcodecloud builds get <build-id> -o table
             """,
-        version: "1.0.4",
+        version: "1.0.5",
         subcommands: [
             InteractiveCommand.self,
             AuthCommand.self,
