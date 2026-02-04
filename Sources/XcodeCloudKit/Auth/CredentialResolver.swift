@@ -71,8 +71,9 @@ public struct CredentialResolver: Sendable {
             Run 'xcodecloud auth init' to set up credentials interactively.
 
             Credentials can also be provided via:
-              - Command-line flags (--key-id, --issuer-id, --private-key-path)
-              - Environment variables (XCODE_CLOUD_KEY_ID, XCODE_CLOUD_ISSUER_ID, XCODE_CLOUD_PRIVATE_KEY_PATH)
+              - Command-line flags (--key-id, --issuer-id, --private-key-path or --private-key)
+              - Environment variables (XCODE_CLOUD_KEY_ID, XCODE_CLOUD_ISSUER_ID,
+                XCODE_CLOUD_PRIVATE_KEY_PATH or XCODE_CLOUD_PRIVATE_KEY)
               - Config file (~/.xcodecloud/config.json)
             """
         )

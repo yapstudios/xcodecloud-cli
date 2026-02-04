@@ -14,11 +14,11 @@ public struct XcodeCloud: ParsableCommand {
 
             AUTHENTICATION
               Credentials can be provided via:
-              1. Command-line flags (--key-id, --issuer-id, --private-key-path)
+              1. Command-line flags (--key-id, --issuer-id, --private-key-path or --private-key)
               2. Environment variables (XCODE_CLOUD_KEY_ID, XCODE_CLOUD_ISSUER_ID,
-                 XCODE_CLOUD_PRIVATE_KEY_PATH)
-              3. Global config (~/.xcodecloud/config.json)
-              4. Project-local config (.xcodecloud/config.json)
+                 XCODE_CLOUD_PRIVATE_KEY_PATH or XCODE_CLOUD_PRIVATE_KEY)
+              3. Project-local config (.xcodecloud/config.json)
+              4. Global config (~/.xcodecloud/config.json)
 
               Run 'xcodecloud auth init' to set up credentials interactively.
 

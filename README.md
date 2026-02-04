@@ -176,6 +176,12 @@ export XCODE_CLOUD_ISSUER_ID="12345678-1234-1234-1234-123456789abc"
 export XCODE_CLOUD_PRIVATE_KEY_PATH="~/AuthKey_ABC123DEF4.p8"
 ```
 
+Or pass the key content directly (useful in CI/CD where the key is stored as a secret):
+
+```bash
+export XCODE_CLOUD_PRIVATE_KEY="$(base64 < ~/AuthKey_ABC123DEF4.p8)"
+```
+
 **Option 4: Command-line flags**
 
 ```bash
@@ -184,6 +190,8 @@ xcodecloud --key-id ABC123DEF4 \
            --private-key-path ~/AuthKey_ABC123DEF4.p8 \
            products list
 ```
+
+Use `--private-key` instead of `--private-key-path` to pass the key content directly (base64-encoded).
 
 ### Credential resolution order
 
@@ -269,6 +277,9 @@ xcodecloud workflows list <product-id> --name Release
 # Show only enabled workflows
 xcodecloud workflows list <product-id> --enabled
 
+# Fetch all pages of results
+xcodecloud workflows list <product-id> --all
+
 # Get workflow details
 xcodecloud workflows get <workflow-id>
 ```
@@ -318,8 +329,8 @@ xcodecloud builds logs <build-id>
 # Download build logs
 xcodecloud builds logs <build-id> --download
 
-# Download logs to a specific directory
-xcodecloud builds logs <build-id> --download --dir ./logs
+# Download logs to a specific directory (-d is short for --dir)
+xcodecloud builds logs <build-id> --download -d ./logs
 
 # Show build errors (compiler issues + test failures)
 xcodecloud builds errors <build-id>
@@ -345,8 +356,8 @@ xcodecloud artifacts list <build-action-id>
 # Download an artifact
 xcodecloud artifacts download <artifact-id>
 
-# Download to a specific directory
-xcodecloud artifacts download <artifact-id> --dir ~/Downloads
+# Download to a specific directory (-d is short for --dir)
+xcodecloud artifacts download <artifact-id> -d ~/Downloads
 ```
 
 #### Auth
@@ -367,8 +378,11 @@ xcodecloud auth check
 # List configured profiles
 xcodecloud auth profiles
 
-# Set default profile
+# Set default profile (global)
 xcodecloud auth use <profile-name>
+
+# Set default profile (local project config only)
+xcodecloud auth use <profile-name> --local
 ```
 
 ### Output formats
@@ -397,7 +411,9 @@ xcodecloud products list -o csv
 | `--pretty` | | Pretty-print JSON output |
 | `--verbose` | `-v` | Show debug information |
 | `--quiet` | `-q` | Suppress non-essential output |
+| `--no-color` | | Disable colored output |
 | `--profile` | | Use a specific auth profile |
+| `--limit <n>` | | Maximum number of results per page (default: 25, for list commands) |
 | `--all` | | Fetch all pages of results (for list commands) |
 | `--no-notify` | | Disable macOS notification (for `builds watch`) |
 | `--help` | `-h` | Show help for any command |
@@ -478,13 +494,13 @@ done
 
 ## Troubleshooting
 
-### "No credentials configured"
+### "Missing credentials: No credentials configured"
 
 Run `xcodecloud auth init` to set up credentials interactively. In interactive mode (`xcodecloud` with no arguments), you'll be prompted to set up credentials automatically.
 
 You can also check that your config file exists at `~/.xcodecloud/config.json`.
 
-### "401 Unauthorized"
+### "Unauthorized: Check your API credentials"
 
 - Verify your Key ID and Issuer ID are correct
 - Make sure you're using a **Team key**, not an Individual key
