@@ -26,7 +26,7 @@ struct InteractiveCommand: ParsableCommand {
             throw ExitCode(rawValue: error.exitCode)
         }
 
-        print(TerminalUI.bold("Xcode Cloud CLI") + " " + TerminalUI.dim("v1.0.0"))
+        print(TerminalUI.bold("Xcode Cloud CLI") + " " + TerminalUI.dim("v\(XcodeCloud.configuration.version)"))
         print(TerminalUI.dim("Tip: Run 'xcodecloud --help' for non-interactive commands."))
         print("")
 
