@@ -61,17 +61,35 @@ public enum TerminalUI {
 
         if n == 1 {
             switch buf[0] {
-            case 10, 13: return .enter       // Enter / Return
-            case 3: return .quit              // Ctrl+C — exit
-            case 113: return .back            // 'q' — go back
+            case 0x1B:
+                // Got ESC — check if more bytes follow (arrow key sequence)
+                // Use a short non-blocking read to distinguish bare ESC from ESC [ X
+                var seq = [UInt8](repeating: 0, count: 2)
+                var pollFd = pollfd(fd: STDIN_FILENO, events: Int16(POLLIN), revents: 0)
+                let ready = poll(&pollFd, 1, 50) // 50ms timeout
+                if ready > 0 {
+                    let seqN = read(STDIN_FILENO, &seq, 2)
+                    if seqN == 2, seq[0] == 0x5B {
+                        switch seq[1] {
+                        case 0x41: return .up    // ESC [ A
+                        case 0x42: return .down  // ESC [ B
+                        default: return .other
+                        }
+                    }
+                    return .other
+                }
+                return .back                     // Bare ESC — go back
+            case 10, 13: return .enter           // Enter / Return
+            case 3: return .quit                 // Ctrl+C — exit
+            case 113: return .back               // 'q' — go back
             default: return .other
             }
         }
 
         if n == 3, buf[0] == 0x1B, buf[1] == 0x5B {
             switch buf[2] {
-            case 0x41: return .up             // ESC [ A
-            case 0x42: return .down           // ESC [ B
+            case 0x41: return .up                // ESC [ A
+            case 0x42: return .down              // ESC [ B
             default: return .other
             }
         }
