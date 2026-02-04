@@ -37,6 +37,10 @@ public struct XcodeCloud: ParsableCommand {
 
               Get build status with table output:
                 $ xcodecloud builds get <build-id> -o table
+
+            DOCUMENTATION
+              https://github.com/yapstudios/xcodecloud-cli
+              https://raw.githubusercontent.com/yapstudios/xcodecloud-cli/main/README.md
             """,
         version: "1.0.9",
         subcommands: [
