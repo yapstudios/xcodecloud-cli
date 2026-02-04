@@ -644,6 +644,12 @@ struct InteractiveCommand: ParsableCommand {
                     print("  \(name)  \(colorStatus(actionStatus))")
                 }
                 print("")
+
+                sendNotification(
+                    title: "Xcode Cloud",
+                    message: "Build \(buildNumber) \(statusText.lowercased()) (\(elapsed))"
+                )
+                print("  Notification sent.")
                 return
             }
 

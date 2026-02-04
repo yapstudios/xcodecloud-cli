@@ -288,6 +288,7 @@ struct CommandParsingTests {
         let watchCmd = command as! BuildsWatchCommand
         #expect(watchCmd.id == "build123")
         #expect(watchCmd.interval == 10)
+        #expect(watchCmd.notify == true)
     }
 
     @Test("Builds watch parses with custom interval")
@@ -295,6 +296,13 @@ struct CommandParsingTests {
         let command = try XcodeCloud.parseAsRoot(["builds", "watch", "build123", "--interval", "5"])
         let watchCmd = command as! BuildsWatchCommand
         #expect(watchCmd.interval == 5)
+    }
+
+    @Test("Builds watch parses with no-notify flag")
+    func testBuildsWatchNoNotify() throws {
+        let command = try XcodeCloud.parseAsRoot(["builds", "watch", "build123", "--no-notify"])
+        let watchCmd = command as! BuildsWatchCommand
+        #expect(watchCmd.notify == false)
     }
 
     @Test("Builds logs parses with build ID")

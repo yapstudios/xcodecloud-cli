@@ -297,11 +297,14 @@ xcodecloud builds start <workflow-id> --branch main
 # Start a build for a specific tag
 xcodecloud builds start <workflow-id> --tag v1.0.0
 
-# Watch a build until completion (polls every 10s)
+# Watch a build until completion (polls every 10s, notifies on completion)
 xcodecloud builds watch <build-id>
 
 # Watch with faster polling
 xcodecloud builds watch <build-id> --interval 5
+
+# Watch without macOS notification
+xcodecloud builds watch <build-id> --no-notify
 
 # List build logs
 xcodecloud builds logs <build-id>
@@ -480,6 +483,21 @@ You can also check that your config file exists at `~/.xcodecloud/config.json`.
 Your API key may not have access to Xcode Cloud. Verify that:
 - Your app has Xcode Cloud enabled in App Store Connect
 - Your API key role has CI access
+
+### Notifications not appearing
+
+`builds watch` sends a macOS notification when the build completes. Notifications are enabled by default and use `osascript`, which routes through **Script Editor** in Notification Center.
+
+If notifications don't appear:
+- Check that **Do Not Disturb** / **Focus** mode is not active
+- Open **System Settings > Notifications > Script Editor** and ensure notifications are allowed
+- Make sure your terminal app has notification permissions
+
+To disable notifications, use `--no-notify`:
+
+```bash
+xcodecloud builds watch <build-id> --no-notify
+```
 
 ### Interactive mode not working
 

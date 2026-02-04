@@ -68,6 +68,15 @@ func printVerbose(_ message: String, verbose: Bool) {
     FileHandle.standardError.write(Data("[\(message)]\n".utf8))
 }
 
+/// Sends a macOS notification via osascript
+func sendNotification(title: String, message: String) {
+    let script = "display notification \"\(message)\" with title \"\(title)\""
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+    process.arguments = ["-e", script]
+    try? process.run()
+}
+
 /// Runs an async closure synchronously
 func runAsync<T: Sendable>(_ block: @Sendable @escaping () async throws -> T) throws -> T {
     let semaphore = DispatchSemaphore(value: 0)

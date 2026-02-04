@@ -279,6 +279,7 @@ struct BuildsWatchCommand: ParsableCommand {
         abstract: "Watch a build run until completion",
         discussion: """
             Polls the build status and displays live progress updates.
+            Sends a macOS notification when the build completes.
             Exits with code 0 on success, 1 on failure.
 
             EXAMPLES
@@ -287,6 +288,9 @@ struct BuildsWatchCommand: ParsableCommand {
 
               Watch with faster polling:
                 $ xcodecloud builds watch <build-id> --interval 5
+
+              Watch without notification:
+                $ xcodecloud builds watch <build-id> --no-notify
             """
     )
 
@@ -297,6 +301,9 @@ struct BuildsWatchCommand: ParsableCommand {
 
     @Option(name: .long, help: "Poll interval in seconds (default: 10)")
     var interval: Int = 10
+
+    @Flag(name: .long, inversion: .prefixedNo, help: "Send macOS notification on completion (default: true)")
+    var notify: Bool = true
 
     mutating func run() throws {
         let client: APIClient
@@ -310,6 +317,7 @@ struct BuildsWatchCommand: ParsableCommand {
         let buildId = id
         let verbose = options.verbose
         let quiet = options.quiet
+        let shouldNotify = notify && !quiet
         let pollInterval = max(interval, 1)
         let isTTY = TerminalUI.isInteractiveTerminal
 
@@ -406,6 +414,16 @@ struct BuildsWatchCommand: ParsableCommand {
                         let name = action.attributes?.name ?? "Unknown"
                         let actionStatus = action.attributes?.completionStatus ?? action.attributes?.executionProgress ?? "-"
                         print("  \(name)  \(colorStatus(actionStatus))")
+                    }
+
+                    if shouldNotify {
+                        sendNotification(
+                            title: "Xcode Cloud",
+                            message: "Build \(buildNumber) \(statusText.lowercased()) (\(elapsed))"
+                        )
+                        if !quiet {
+                            print("  Notification sent.")
+                        }
                     }
 
                     if statusText == "SUCCEEDED" {
