@@ -42,7 +42,7 @@ public struct XcodeCloud: ParsableCommand {
               https://github.com/yapstudios/xcodecloud-cli
               https://raw.githubusercontent.com/yapstudios/xcodecloud-cli/main/README.md
             """,
-        version: "1.0.9",
+        version: "1.1.0",
         subcommands: [
             InteractiveCommand.self,
             AuthCommand.self,
