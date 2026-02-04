@@ -110,6 +110,7 @@ struct InteractiveCommand: ParsableCommand {
         var allProducts = response.data
         var allIncluded = response.included
         var nextURL = response.links?.next
+        var cursorIndex = 0
 
         while true {
             var choices = allProducts.sorted { ($0.attributes?.name ?? "") < ($1.attributes?.name ?? "") }.map { product in
@@ -125,14 +126,17 @@ struct InteractiveCommand: ParsableCommand {
 
             let choice: Choice
             do {
-                choice = try SelectPrompt.run(prompt: "Select a product:", choices: choices)
+                choice = try SelectPrompt.run(prompt: "Select a product:", choices: choices, initialSelection: cursorIndex)
             } catch is SelectPromptError {
                 return
             }
 
+            cursorIndex = 0
+
             if choice.value == "back" { return }
 
             if choice.value == "loadmore", let url = nextURL {
+                let previousCount = allProducts.count
                 let nextResponse: APIListResponse<CiProduct> = try withLoading("Loading more...") {
                     try runAsync { try await client.fetchNextPage(url) }
                 }
@@ -141,6 +145,7 @@ struct InteractiveCommand: ParsableCommand {
                     allIncluded = (allIncluded ?? []) + included
                 }
                 nextURL = nextResponse.links?.next
+                cursorIndex = previousCount // jump to first new item
                 continue
             }
 
@@ -186,6 +191,7 @@ struct InteractiveCommand: ParsableCommand {
 
         var allWorkflows = response.data
         var nextURL = response.links?.next
+        var cursorIndex = 0
 
         while true {
             var choices = allWorkflows.map { workflow in
@@ -200,19 +206,23 @@ struct InteractiveCommand: ParsableCommand {
 
             let choice: Choice
             do {
-                choice = try SelectPrompt.run(prompt: "Select a workflow:", choices: choices)
+                choice = try SelectPrompt.run(prompt: "Select a workflow:", choices: choices, initialSelection: cursorIndex)
             } catch is SelectPromptError {
                 return
             }
 
+            cursorIndex = 0
+
             if choice.value == "back" { return }
 
             if choice.value == "loadmore", let url = nextURL {
+                let previousCount = allWorkflows.count
                 let nextResponse: APIListResponse<CiWorkflow> = try withLoading("Loading more...") {
                     try runAsync { try await client.fetchNextPage(url) }
                 }
                 allWorkflows.append(contentsOf: nextResponse.data)
                 nextURL = nextResponse.links?.next
+                cursorIndex = previousCount
                 continue
             }
 
@@ -262,6 +272,7 @@ struct InteractiveCommand: ParsableCommand {
 
         var allBuilds = response.data
         var nextURL = response.links?.next
+        var cursorIndex = 0
 
         while true {
             let sorted = allBuilds.sorted { ($0.attributes?.number ?? 0) > ($1.attributes?.number ?? 0) }
@@ -281,19 +292,24 @@ struct InteractiveCommand: ParsableCommand {
 
             let choice: Choice
             do {
-                choice = try SelectPrompt.run(prompt: "Select a build:", choices: choices)
+                choice = try SelectPrompt.run(prompt: "Select a build:", choices: choices, initialSelection: cursorIndex)
             } catch is SelectPromptError {
                 return
             }
 
+            cursorIndex = 0
+
             if choice.value == "back" { return }
 
             if choice.value == "loadmore", let url = nextURL {
+                let previousCount = allBuilds.count
                 let nextResponse: APIListResponse<CiBuildRun> = try withLoading("Loading more...") {
                     try runAsync { try await client.fetchNextPage(url) }
                 }
                 allBuilds.append(contentsOf: nextResponse.data)
                 nextURL = nextResponse.links?.next
+                // Sorted descending, so new (older) builds appear at the end
+                cursorIndex = previousCount
                 continue
             }
 

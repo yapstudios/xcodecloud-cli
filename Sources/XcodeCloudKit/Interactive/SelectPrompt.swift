@@ -18,12 +18,12 @@ public enum SelectPrompt {
 
     /// Display a selection prompt and return the chosen item.
     /// Throws if the user quits (Ctrl+C or 'q').
-    public static func run(prompt: String, choices: [Choice]) throws -> Choice {
+    public static func run(prompt: String, choices: [Choice], initialSelection: Int = 0) throws -> Choice {
         guard !choices.isEmpty else {
             throw SelectPromptError.noChoices
         }
 
-        var selected = 0
+        var selected = min(initialSelection, choices.count - 1)
         let totalLines = choices.count + 1 // prompt + choices
 
         TerminalUI.enableRawMode()
