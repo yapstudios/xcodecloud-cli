@@ -15,9 +15,6 @@ struct BuildsCommand: ParsableCommand {
               completionStatus: SUCCEEDED, FAILED, ERRORED, CANCELED, SKIPPED
 
             EXAMPLES
-              List recent builds:
-                $ xcodecloud builds list
-
               List builds for a workflow:
                 $ xcodecloud builds list --workflow <workflow-id>
 
@@ -60,20 +57,24 @@ struct BuildsListCommand: ParsableCommand {
         commandName: "list",
         abstract: "List build runs",
         discussion: """
+            NOTE
+              The --workflow flag is required. The App Store Connect API does not
+              support listing builds across all workflows.
+
             FILTERING
               --status <status>  Filter by completion status
                                  Values: SUCCEEDED, FAILED, ERRORED, CANCELED, SKIPPED
               --running          Show only builds currently in progress
 
             EXAMPLES
-              List recent builds:
-                $ xcodecloud builds list -o table
+              List recent builds for a workflow:
+                $ xcodecloud builds list --workflow <id> -o table
 
-              List failed builds for a workflow:
+              List failed builds:
                 $ xcodecloud builds list --workflow <id> --status failed
 
               List running builds:
-                $ xcodecloud builds list --running
+                $ xcodecloud builds list --workflow <id> --running
 
               List all builds (paginate through everything):
                 $ xcodecloud builds list --workflow <id> --all
@@ -148,7 +149,16 @@ struct BuildsListCommand: ParsableCommand {
                 print(output)
             }
         } catch let error as CLIError {
-            printError(error.localizedDescription)
+            if case .forbidden = error, workflowId == nil {
+                printError("Forbidden: The API does not allow listing all builds globally.")
+                print("Use --workflow to list builds for a specific workflow:")
+                print("  xcodecloud builds list --workflow <workflow-id>")
+                print("")
+                print("To find workflow IDs, run:")
+                print("  xcodecloud workflows list <product-id>")
+            } else {
+                printError(error.localizedDescription)
+            }
             throw ExitCode(rawValue: error.exitCode)
         }
     }

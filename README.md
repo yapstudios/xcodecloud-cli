@@ -28,7 +28,7 @@ xcodecloud
 │   ├── list <product-id>  → List workflows for a CI product
 │   └── get <id>           → Get details for a workflow
 ├── builds
-│   ├── list               → List build runs
+│   ├── list --workflow <id>→ List build runs for a workflow
 │   ├── get <id>           → Get details for a build run
 │   ├── start <workflow-id>→ Start a new build run
 │   ├── watch <build-id>  → Watch a build until completion
@@ -287,20 +287,14 @@ xcodecloud workflows get <workflow-id>
 #### Builds
 
 ```bash
-# List recent builds across all workflows
-xcodecloud builds list
-
-# List builds for a specific workflow
+# List builds for a workflow (--workflow is required)
 xcodecloud builds list --workflow <workflow-id>
 
 # Filter by status (SUCCEEDED, FAILED, ERRORED, CANCELED, SKIPPED)
-xcodecloud builds list --status failed
+xcodecloud builds list --workflow <workflow-id> --status failed
 
 # Show only running builds
-xcodecloud builds list --running
-
-# Combine filters
-xcodecloud builds list --workflow <workflow-id> --status failed
+xcodecloud builds list --workflow <workflow-id> --running
 
 # Get build details
 xcodecloud builds get <build-id>
@@ -429,7 +423,7 @@ List commands support client-side filtering. Filters are applied after fetching 
 | `workflows list` | `--name <text>` | Filter by name (case-insensitive substring match) |
 | `workflows list` | `--enabled` | Show only enabled workflows |
 | `workflows list` | `--disabled` | Show only disabled workflows |
-| `builds list` | `--workflow <id>` | Show builds for a specific workflow |
+| `builds list` | `--workflow <id>` | Workflow to list builds for (required) |
 | `builds list` | `--status <status>` | Filter by completion status: `SUCCEEDED`, `FAILED`, `ERRORED`, `CANCELED`, `SKIPPED` |
 | `builds list` | `--running` | Show only builds currently in progress |
 
@@ -451,13 +445,16 @@ xcodecloud products list -o table
 # 2. List workflows for a product (copy product ID from step 1)
 xcodecloud workflows list abc123 -o table
 
-# 3. Start a build (copy workflow ID from step 2)
+# 3. List builds for a workflow (copy workflow ID from step 2)
+xcodecloud builds list --workflow def456 -o table
+
+# 4. Start a build
 xcodecloud builds start def456
 
-# 4. Check build status (copy build ID from step 3)
+# 5. Check build status (copy build ID from step 4)
 xcodecloud builds get ghi789 -o table
 
-# 5. If build failed, see what went wrong
+# 6. If build failed, see what went wrong
 xcodecloud builds errors ghi789
 ```
 
@@ -506,6 +503,16 @@ You can also check that your config file exists at `~/.xcodecloud/config.json`.
 - Make sure you're using a **Team key**, not an Individual key
 - Check that your API key has the correct role (Admin, App Manager, or Developer)
 - Ensure your `.p8` file path is correct and the file is readable
+
+### "Forbidden" when listing builds
+
+The App Store Connect API does not support listing builds across all workflows. Use `--workflow` to scope the request:
+
+```bash
+xcodecloud builds list --workflow <workflow-id>
+```
+
+To find workflow IDs, run `xcodecloud workflows list <product-id>`.
 
 ### "No products found"
 
