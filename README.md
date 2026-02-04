@@ -7,7 +7,8 @@ A command-line interface for [Xcode Cloud](https://developer.apple.com/xcode-clo
 - **Interactive mode** — arrow-key navigation through products, workflows, builds, and artifacts
 - **Direct commands** — scriptable CLI for automation and CI pipelines
 - **Multiple output formats** — JSON (default), table, or CSV
-- **Profile support** — manage multiple App Store Connect accounts
+- **Profile support** — manage multiple App Store Connect accounts, switch profiles in interactive mode
+- **Build notifications** — macOS notification when a watched build completes
 - **Zero dependencies** — pure Swift, no external libraries for terminal UI
 
 ## Commands
@@ -224,11 +225,16 @@ xcodecloud
 
 Navigate with arrow keys, select with Enter, go back or quit with `q`.
 
+If no credentials are configured, interactive mode will offer to set them up on first launch.
+
 Interactive mode provides a guided flow:
 - **Products** → select an app or framework
 - **Workflows** → select a CI workflow
-- **Builds** → view build history, start new builds
+- **Builds** → view build history, start new builds, watch with live status
 - **Artifacts** → download build outputs
+- **Auth** → switch profiles, check credentials, add new profiles
+
+When multiple profiles are configured, the active profile name is shown on the prompt.
 
 ### Commands
 
@@ -349,6 +355,12 @@ xcodecloud artifacts download <artifact-id> --dir ~/Downloads
 # Set up credentials interactively (auto-verifies after saving)
 xcodecloud auth init
 
+# Set up a named profile
+xcodecloud auth init --profile work
+
+# Overwrite an existing profile
+xcodecloud auth init --profile work --force
+
 # Re-verify credentials work
 xcodecloud auth check
 
@@ -387,6 +399,7 @@ xcodecloud products list -o csv
 | `--quiet` | `-q` | Suppress non-essential output |
 | `--profile` | | Use a specific auth profile |
 | `--all` | | Fetch all pages of results (for list commands) |
+| `--no-notify` | | Disable macOS notification (for `builds watch`) |
 | `--help` | `-h` | Show help for any command |
 
 ### Filtering
