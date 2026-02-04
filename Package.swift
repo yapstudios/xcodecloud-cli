@@ -44,6 +44,10 @@ let package = Package(
                 "XcodeCloudKit",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ]
+        ),
+        .testTarget(
+            name: "IntegrationTests",
+            dependencies: ["XcodeCloudKit"]
         )
     ]
 )
