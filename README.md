@@ -29,6 +29,7 @@ xcodecloud
 │   └── get <id>           → Get details for a workflow
 ├── builds
 │   ├── list --workflow <id>→ List build runs for a workflow
+│   ├── find <commit-sha>  → Find a build by commit SHA
 │   ├── get <id>           → Get details for a build run
 │   ├── start <workflow-id>→ Start a new build run
 │   ├── watch <build-id>  → Watch a build until completion
@@ -287,14 +288,26 @@ xcodecloud workflows get <workflow-id>
 #### Builds
 
 ```bash
-# List builds for a workflow (--workflow is required)
+# List builds for a workflow (--workflow or --workflow-name is required)
 xcodecloud builds list --workflow <workflow-id>
+
+# List builds by workflow name (instead of ID)
+xcodecloud builds list --product <product-id> --workflow-name "Release"
 
 # Filter by status (SUCCEEDED, FAILED, ERRORED, CANCELED, SKIPPED)
 xcodecloud builds list --workflow <workflow-id> --status failed
 
+# Filter by commit SHA
+xcodecloud builds list --workflow <workflow-id> --commit abc1234
+
 # Show only running builds
 xcodecloud builds list --workflow <workflow-id> --running
+
+# Find a build by commit SHA (searches across all products and workflows)
+xcodecloud builds find abc1234
+
+# Narrow the search to a specific product
+xcodecloud builds find abc1234 --product <product-id>
 
 # Get build details
 xcodecloud builds get <build-id>
@@ -423,14 +436,18 @@ List commands support client-side filtering. Filters are applied after fetching 
 | `workflows list` | `--name <text>` | Filter by name (case-insensitive substring match) |
 | `workflows list` | `--enabled` | Show only enabled workflows |
 | `workflows list` | `--disabled` | Show only disabled workflows |
-| `builds list` | `--workflow <id>` | Workflow to list builds for (required) |
+| `builds list` | `--workflow <id>` | Workflow to list builds for (required unless using `--workflow-name`) |
+| `builds list` | `--workflow-name <name>` | Look up workflow by name (requires `--product`) |
+| `builds list` | `--product <id>` | Product ID (required with `--workflow-name`) |
 | `builds list` | `--status <status>` | Filter by completion status: `SUCCEEDED`, `FAILED`, `ERRORED`, `CANCELED`, `SKIPPED` |
 | `builds list` | `--running` | Show only builds currently in progress |
+| `builds list` | `--commit <sha>` | Filter by commit SHA prefix |
 
 Filters can be combined:
 
 ```bash
 xcodecloud builds list --workflow <id> --status failed
+xcodecloud builds list --workflow <id> --commit abc1234
 xcodecloud products list --name MyApp --type APP
 ```
 
@@ -456,6 +473,15 @@ xcodecloud builds get ghi789 -o table
 
 # 6. If build failed, see what went wrong
 xcodecloud builds errors ghi789
+```
+
+### Quick build lookup
+
+If you know the commit SHA, skip the product/workflow/build chain entirely:
+
+```bash
+# Find the build for a specific commit and see errors if it failed
+xcodecloud builds find abc1234
 ```
 
 ### Scripting examples

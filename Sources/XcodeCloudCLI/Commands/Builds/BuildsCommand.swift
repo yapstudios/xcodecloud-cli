@@ -30,6 +30,9 @@ struct BuildsCommand: ParsableCommand {
               List failed builds:
                 $ xcodecloud builds list --workflow <workflow-id> --status failed
 
+              Find a build by commit SHA:
+                $ xcodecloud builds find abc1234
+
               Show build errors:
                 $ xcodecloud builds errors <build-id>
 
@@ -38,6 +41,7 @@ struct BuildsCommand: ParsableCommand {
             """,
         subcommands: [
             BuildsListCommand.self,
+            BuildsFindCommand.self,
             BuildsGetCommand.self,
             BuildsStartCommand.self,
             BuildsWatchCommand.self,
@@ -58,13 +62,17 @@ struct BuildsListCommand: ParsableCommand {
         abstract: "List build runs",
         discussion: """
             NOTE
-              The --workflow flag is required. The App Store Connect API does not
-              support listing builds across all workflows.
+              Either --workflow or --workflow-name is required. The App Store Connect
+              API does not support listing builds across all workflows.
+
+              Use --workflow-name with --product to look up a workflow by name
+              instead of ID.
 
             FILTERING
               --status <status>  Filter by completion status
                                  Values: SUCCEEDED, FAILED, ERRORED, CANCELED, SKIPPED
               --running          Show only builds currently in progress
+              --commit <sha>     Filter by commit SHA prefix
 
             EXAMPLES
               List recent builds for a workflow:
@@ -76,6 +84,12 @@ struct BuildsListCommand: ParsableCommand {
               List running builds:
                 $ xcodecloud builds list --workflow <id> --running
 
+              Find builds for a specific commit:
+                $ xcodecloud builds list --workflow <id> --commit abc1234
+
+              List builds by workflow name:
+                $ xcodecloud builds list --product <product-id> --workflow-name "Release"
+
               List all builds (paginate through everything):
                 $ xcodecloud builds list --workflow <id> --all
             """
@@ -85,6 +99,12 @@ struct BuildsListCommand: ParsableCommand {
 
     @Option(name: .long, help: "Filter by workflow ID")
     var workflow: String?
+
+    @Option(name: .customLong("workflow-name"), help: "Filter by workflow name (requires --product)")
+    var workflowName: String?
+
+    @Option(name: .long, help: "Product ID (required with --workflow-name)")
+    var product: String?
 
     @Option(name: .long, help: "Maximum number of results (default: 25)")
     var limit: Int?
@@ -98,7 +118,21 @@ struct BuildsListCommand: ParsableCommand {
     @Flag(name: .long, help: "Show only builds currently in progress")
     var running: Bool = false
 
+    @Option(name: .long, help: "Filter by commit SHA prefix")
+    var commit: String?
+
     mutating func run() throws {
+        if workflowName != nil && product == nil {
+            printError("--workflow-name requires --product to identify which product to search")
+            print("  xcodecloud builds list --product <product-id> --workflow-name <name>")
+            throw ExitCode.failure
+        }
+
+        if workflowName != nil && workflow != nil {
+            printError("Cannot specify both --workflow and --workflow-name")
+            throw ExitCode.failure
+        }
+
         let client: APIClient
         do {
             client = try options.apiClient()
@@ -107,12 +141,49 @@ struct BuildsListCommand: ParsableCommand {
             throw ExitCode(rawValue: error.exitCode)
         }
 
-        let workflowId = workflow
         let limitVal = limit
         let verbose = options.verbose
         let fetchAll = all
         let statusFilter = status?.uppercased()
         let showRunning = running
+
+        // Resolve workflow ID from --workflow or --workflow-name
+        var resolvedWorkflowId = workflow
+        if let wfName = workflowName, let prodId = product {
+            printVerbose("Looking up workflow '\(wfName)' in product \(prodId)...", verbose: verbose)
+            let workflowsResponse = try runAsync {
+                try await client.listAllWorkflows(productId: prodId)
+            }
+
+            let matches = workflowsResponse.data.filter {
+                $0.attributes?.name?.localizedCaseInsensitiveContains(wfName) == true
+            }
+
+            guard let matched = matches.first else {
+                printError("No workflow found matching '\(wfName)' in product \(prodId)")
+                if !workflowsResponse.data.isEmpty {
+                    print("Available workflows:")
+                    for wf in workflowsResponse.data {
+                        print("  \(wf.id)  \(wf.attributes?.name ?? "-")")
+                    }
+                }
+                throw ExitCode.failure
+            }
+
+            if matches.count > 1 {
+                printError("Multiple workflows match '\(wfName)':")
+                for wf in matches {
+                    print("  \(wf.id)  \(wf.attributes?.name ?? "-")")
+                }
+                print("Use --workflow <id> to specify exactly which one.")
+                throw ExitCode.failure
+            }
+
+            printVerbose("Resolved workflow: \(matched.id) (\(matched.attributes?.name ?? ""))", verbose: verbose)
+            resolvedWorkflowId = matched.id
+        }
+
+        let workflowId = resolvedWorkflowId
 
         do {
             if let wfId = workflowId {
@@ -139,6 +210,12 @@ struct BuildsListCommand: ParsableCommand {
                 }
             }
 
+            if let commitFilter = commit?.lowercased() {
+                filtered = filtered.filter {
+                    $0.attributes?.sourceCommit?.commitSha?.lowercased().hasPrefix(commitFilter) == true
+                }
+            }
+
             let formatter = options.outputFormatter()
 
             if options.output == .json {
@@ -151,14 +228,216 @@ struct BuildsListCommand: ParsableCommand {
         } catch let error as CLIError {
             if case .forbidden = error, workflowId == nil {
                 printError("Forbidden: The API does not allow listing all builds globally.")
-                print("Use --workflow to list builds for a specific workflow:")
+                print("Use --workflow or --workflow-name to scope the request:")
                 print("  xcodecloud builds list --workflow <workflow-id>")
+                print("  xcodecloud builds list --product <product-id> --workflow-name <name>")
                 print("")
                 print("To find workflow IDs, run:")
                 print("  xcodecloud workflows list <product-id>")
             } else {
                 printError(error.localizedDescription)
             }
+            throw ExitCode(rawValue: error.exitCode)
+        }
+    }
+}
+
+struct BuildsFindCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "find",
+        abstract: "Find a build by commit SHA",
+        discussion: """
+            Searches across all products and workflows to find a build that
+            matches a given commit SHA prefix (case-insensitive).
+
+            Use --product to narrow the search to a specific product.
+
+            EXAMPLES
+              Find a build by commit:
+                $ xcodecloud builds find abc1234
+
+              Narrow to a specific product:
+                $ xcodecloud builds find abc1234 --product <product-id>
+
+              JSON output:
+                $ xcodecloud builds find abc1234 -o json --pretty
+            """
+    )
+
+    @OptionGroup var options: GlobalOptions
+
+    @Argument(help: "Commit SHA or prefix to search for")
+    var commitSha: String
+
+    @Option(name: .long, help: "Narrow search to a specific product ID")
+    var product: String?
+
+    mutating func run() throws {
+        let client: APIClient
+        do {
+            client = try options.apiClient()
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
+            throw ExitCode(rawValue: error.exitCode)
+        }
+
+        let sha = commitSha.lowercased()
+        let verbose = options.verbose
+        let productFilter = product
+
+        do {
+            let products: [CiProduct]
+            if let productId = productFilter {
+                printVerbose("Fetching product \(productId)...", verbose: verbose)
+                let response = try runAsync {
+                    try await client.getProduct(id: productId)
+                }
+                products = [response.data]
+            } else {
+                printVerbose("Fetching all products...", verbose: verbose)
+                let response = try runAsync {
+                    try await client.listAllProducts()
+                }
+                products = response.data
+            }
+
+            for product in products {
+                let productName = product.attributes?.name ?? product.id
+                printVerbose("Searching workflows for \(productName)...", verbose: verbose)
+
+                let workflowsResponse = try runAsync {
+                    try await client.listAllWorkflows(productId: product.id)
+                }
+
+                for workflow in workflowsResponse.data {
+                    let workflowName = workflow.attributes?.name ?? workflow.id
+                    printVerbose("Searching builds in \(workflowName)...", verbose: verbose)
+
+                    let buildsResponse = try runAsync {
+                        try await client.listBuildRuns(workflowId: workflow.id, limit: 25)
+                    }
+
+                    if let build = buildsResponse.data.first(where: {
+                        $0.attributes?.sourceCommit?.commitSha?.lowercased().hasPrefix(sha) == true
+                    }) {
+                        let formatter = options.outputFormatter()
+
+                        if options.output == .json {
+                            let output = try formatter.formatRawJSON(build)
+                            print(output)
+                        } else {
+                            let attrs = build.attributes
+                            let buildNumber = attrs?.number.map { "#\($0)" } ?? build.id
+                            let status = attrs?.completionStatus ?? attrs?.executionProgress ?? "UNKNOWN"
+
+                            print("Build \(buildNumber)")
+                            print("  ID:       \(build.id)")
+                            print("  Product:  \(productName)")
+                            print("  Workflow: \(workflowName)")
+                            print("  Status:   \(status)")
+
+                            if let commit = attrs?.sourceCommit {
+                                print("  Commit:   \(commit.commitSha ?? "-")")
+                                if let message = commit.message {
+                                    let firstLine = message.components(separatedBy: .newlines).first ?? message
+                                    print("  Message:  \(firstLine)")
+                                }
+                                if let author = commit.author?.displayName {
+                                    print("  Author:   \(author)")
+                                }
+                            }
+
+                            if let started = attrs?.startedDate {
+                                print("  Started:  \(formatDate(started) ?? started)")
+                            }
+                            if let finished = attrs?.finishedDate {
+                                print("  Finished: \(formatDate(finished) ?? finished)")
+                            }
+
+                            // If failed, show errors
+                            if status == "FAILED" || status == "ERRORED" {
+                                print("")
+                                printVerbose("Fetching errors...", verbose: verbose)
+
+                                let actionsResponse = try runAsync {
+                                    try await client.listBuildActions(buildRunId: build.id)
+                                }
+
+                                let failedActions = actionsResponse.data.filter {
+                                    $0.attributes?.completionStatus == "FAILED" ||
+                                    $0.attributes?.completionStatus == "ERRORED"
+                                }
+
+                                if !failedActions.isEmpty {
+                                    print("Errors:")
+                                    for action in failedActions {
+                                        let name = action.attributes?.name ?? "Unknown"
+                                        let actionStatus = action.attributes?.completionStatus ?? "Unknown"
+                                        print("  \(name): \(actionStatus)")
+
+                                        let issuesResponse = try runAsync {
+                                            try await client.listIssues(buildActionId: action.id)
+                                        }
+
+                                        for issue in issuesResponse.data {
+                                            let message = issue.attributes?.message ?? "No message"
+                                            let file = issue.attributes?.fileSource?.path ?? ""
+                                            let line = issue.attributes?.fileSource?.lineNumber
+                                            if !file.isEmpty {
+                                                if let line {
+                                                    print("    \(file):\(line): \(message)")
+                                                } else {
+                                                    print("    \(file): \(message)")
+                                                }
+                                            } else {
+                                                print("    \(message)")
+                                            }
+                                        }
+                                    }
+
+                                    // Also check for test failures
+                                    let testActions = actionsResponse.data.filter {
+                                        $0.attributes?.actionType == "TEST"
+                                    }
+                                    for action in testActions {
+                                        let testResponse = try runAsync {
+                                            try await client.listTestResults(buildActionId: action.id)
+                                        }
+                                        let failures = testResponse.data.filter {
+                                            $0.attributes?.status == "FAILURE" || $0.attributes?.status == "EXPECTED_FAILURE"
+                                        }
+                                        if !failures.isEmpty {
+                                            print("")
+                                            print("Test Failures:")
+                                            for test in failures {
+                                                let className = test.attributes?.className ?? "Unknown"
+                                                let testName = test.attributes?.name ?? "Unknown"
+                                                print("  \(className).\(testName)")
+                                                if let message = test.attributes?.message, !message.isEmpty {
+                                                    let lines = message.components(separatedBy: .newlines)
+                                                    for line in lines {
+                                                        print("    \(line)")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        return
+                    }
+                }
+            }
+
+            printError("No build found for commit \(commitSha)")
+            throw ExitCode.failure
+
+        } catch let exitCode as ExitCode {
+            throw exitCode
+        } catch let error as CLIError {
+            printError(error.localizedDescription)
             throw ExitCode(rawValue: error.exitCode)
         }
     }
