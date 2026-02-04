@@ -258,6 +258,7 @@ struct InteractiveCommand: ParsableCommand {
                     choices: [
                         Choice(label: "Watch build", value: "watch"),
                         Choice(label: "View details", value: "details"),
+                        Choice(label: "View actions", value: "actions", description: "- Issues, tests, artifacts per action"),
                         Choice(label: "Show errors", value: "errors"),
                         Choice(label: "Download logs", value: "logs"),
                         Choice(label: "List artifacts", value: "artifacts"),
@@ -273,6 +274,8 @@ struct InteractiveCommand: ParsableCommand {
                 try watchBuild(client: client, buildId: buildId)
             case "details":
                 try showBuildDetails(client: client, buildId: buildId)
+            case "actions":
+                try actionsMenu(client: client, buildId: buildId)
             case "errors":
                 try showBuildErrors(client: client, buildId: buildId)
             case "logs":
@@ -454,6 +457,264 @@ struct InteractiveCommand: ParsableCommand {
             previousLineCount = lines.count
 
             sleep(10)
+        }
+    }
+
+    // MARK: - Actions
+
+    private func actionsMenu(client: APIClient, buildId: String) throws {
+        let actionsResponse = try withLoading("Fetching actions...") {
+            try runAsync { try await client.listBuildActions(buildRunId: buildId) }
+        }
+
+        guard !actionsResponse.data.isEmpty else {
+            print("No actions found for this build.")
+            print("")
+            return
+        }
+
+        func colorStatus(_ status: String) -> String {
+            switch status {
+            case "SUCCEEDED": return TerminalUI.green(status)
+            case "FAILED", "ERRORED": return TerminalUI.red(status)
+            case "CANCELED", "SKIPPED": return TerminalUI.yellow(status)
+            case "RUNNING": return TerminalUI.cyan(status)
+            default: return TerminalUI.dim(status)
+            }
+        }
+
+        let choices = actionsResponse.data.map { action in
+            let name = action.attributes?.name ?? "Unknown"
+            let type = action.attributes?.actionType ?? ""
+            let status = action.attributes?.completionStatus ?? action.attributes?.executionProgress ?? ""
+            return Choice(label: "\(name) - \(colorStatus(status))", value: action.id, description: "- \(type)")
+        } + [Choice(label: "Back", value: "back")]
+
+        while true {
+            let choice: Choice
+            do {
+                choice = try SelectPrompt.run(prompt: "Select an action:", choices: choices)
+            } catch is SelectPromptError {
+                return
+            }
+
+            guard choice.value != "back" else { return }
+
+            if let action = actionsResponse.data.first(where: { $0.id == choice.value }) {
+                try actionDetailMenu(client: client, action: action)
+            }
+        }
+    }
+
+    private func actionDetailMenu(client: APIClient, action: CiBuildAction) throws {
+        let actionName = action.attributes?.name ?? "Unknown"
+        let isTestAction = action.attributes?.actionType == "TEST"
+
+        while true {
+            var menuChoices = [
+                Choice(label: "View issues", value: "issues", description: "- Compiler errors & warnings"),
+            ]
+            if isTestAction {
+                menuChoices.append(Choice(label: "View test results", value: "tests"))
+            }
+            menuChoices.append(Choice(label: "List artifacts", value: "artifacts"))
+            menuChoices.append(Choice(label: "Back", value: "back"))
+
+            let choice: Choice
+            do {
+                choice = try SelectPrompt.run(prompt: "\(actionName) -", choices: menuChoices)
+            } catch is SelectPromptError {
+                return
+            }
+
+            switch choice.value {
+            case "issues":
+                try showActionIssues(client: client, action: action)
+            case "tests":
+                try showActionTestResults(client: client, action: action)
+            case "artifacts":
+                try showActionArtifacts(client: client, action: action)
+            default:
+                return
+            }
+        }
+    }
+
+    private func showActionIssues(client: APIClient, action: CiBuildAction) throws {
+        let actionName = action.attributes?.name ?? "Unknown"
+
+        let response = try withLoading("Fetching issues...") {
+            try runAsync { try await client.listIssues(buildActionId: action.id) }
+        }
+
+        guard !response.data.isEmpty else {
+            print("No issues found for \(actionName).")
+            print("")
+            return
+        }
+
+        let errors = response.data.filter { $0.attributes?.issueType == "ERROR" }
+        let warnings = response.data.filter { $0.attributes?.issueType == "WARNING" }
+        let others = response.data.filter { $0.attributes?.issueType != "ERROR" && $0.attributes?.issueType != "WARNING" }
+
+        print(TerminalUI.bold("\(actionName) - Issues (\(response.data.count)):"))
+        print("")
+
+        if !errors.isEmpty {
+            print(TerminalUI.red("  Errors (\(errors.count)):"))
+            for issue in errors {
+                let message = issue.attributes?.message ?? "No message"
+                let file = issue.attributes?.fileSource?.path ?? ""
+                let line = issue.attributes?.fileSource?.lineNumber
+                if !file.isEmpty {
+                    let location = line.map { "\(file):\($0)" } ?? file
+                    print("    \(location)")
+                }
+                print("    \(message)")
+                print("")
+            }
+        }
+
+        if !warnings.isEmpty {
+            print(TerminalUI.yellow("  Warnings (\(warnings.count)):"))
+            for issue in warnings {
+                let message = issue.attributes?.message ?? "No message"
+                let file = issue.attributes?.fileSource?.path ?? ""
+                let line = issue.attributes?.fileSource?.lineNumber
+                if !file.isEmpty {
+                    let location = line.map { "\(file):\($0)" } ?? file
+                    print("    \(location)")
+                }
+                print("    \(message)")
+                print("")
+            }
+        }
+
+        if !others.isEmpty {
+            for issue in others {
+                let issueType = issue.attributes?.issueType ?? "UNKNOWN"
+                let message = issue.attributes?.message ?? "No message"
+                print("  [\(issueType)] \(message)")
+            }
+            print("")
+        }
+    }
+
+    private func showActionTestResults(client: APIClient, action: CiBuildAction) throws {
+        let actionName = action.attributes?.name ?? "Unknown"
+
+        let response = try withLoading("Fetching test results...") {
+            try runAsync { try await client.listTestResults(buildActionId: action.id) }
+        }
+
+        guard !response.data.isEmpty else {
+            print("No test results found for \(actionName).")
+            print("")
+            return
+        }
+
+        let passed = response.data.filter { $0.attributes?.status == "SUCCESS" }
+        let failed = response.data.filter { $0.attributes?.status == "FAILURE" || $0.attributes?.status == "EXPECTED_FAILURE" }
+        let skipped = response.data.filter { $0.attributes?.status == "SKIPPED" }
+
+        print(TerminalUI.bold("\(actionName) - Test Results:"))
+        print("  Total: \(response.data.count)  " +
+              TerminalUI.green("Passed: \(passed.count)") + "  " +
+              TerminalUI.red("Failed: \(failed.count)") + "  " +
+              TerminalUI.dim("Skipped: \(skipped.count)"))
+        print("")
+
+        if !failed.isEmpty {
+            print(TerminalUI.red("  Failures:"))
+            for test in failed {
+                let className = test.attributes?.className ?? ""
+                let testName = test.attributes?.name ?? "Unknown"
+                let fullName = className.isEmpty ? testName : "\(className).\(testName)"
+                print("    \(fullName)")
+                if let message = test.attributes?.message, !message.isEmpty {
+                    let lines = message.split(separator: "\n")
+                    for line in lines {
+                        print("      \(line)")
+                    }
+                }
+                if let fileSource = test.attributes?.fileSource, let path = fileSource.path {
+                    let location = fileSource.lineNumber.map { "\(path):\($0)" } ?? path
+                    print("      at \(location)")
+                }
+                print("")
+            }
+        }
+
+        if !skipped.isEmpty && skipped.count <= 20 {
+            print(TerminalUI.dim("  Skipped:"))
+            for test in skipped {
+                let className = test.attributes?.className ?? ""
+                let testName = test.attributes?.name ?? "Unknown"
+                let fullName = className.isEmpty ? testName : "\(className).\(testName)"
+                print("    \(fullName)")
+            }
+            print("")
+        } else if !skipped.isEmpty {
+            print(TerminalUI.dim("  Skipped: \(skipped.count) tests"))
+            print("")
+        }
+
+        if !passed.isEmpty && passed.count <= 20 {
+            print(TerminalUI.green("  Passed:"))
+            for test in passed {
+                let className = test.attributes?.className ?? ""
+                let testName = test.attributes?.name ?? "Unknown"
+                let fullName = className.isEmpty ? testName : "\(className).\(testName)"
+                print("    \(fullName)")
+            }
+            print("")
+        } else if !passed.isEmpty {
+            print(TerminalUI.green("  Passed: \(passed.count) tests"))
+            print("")
+        }
+    }
+
+    private func showActionArtifacts(client: APIClient, action: CiBuildAction) throws {
+        let actionName = action.attributes?.name ?? "Unknown"
+
+        let response = try withLoading("Fetching artifacts...") {
+            try runAsync { try await client.listArtifacts(buildActionId: action.id) }
+        }
+
+        guard !response.data.isEmpty else {
+            print("No artifacts found for \(actionName).")
+            print("")
+            return
+        }
+
+        let choices = response.data.map { artifact in
+            let name = artifact.attributes?.fileName ?? "Unknown"
+            let size = artifact.attributes?.fileSize.map { formatSize($0) } ?? ""
+            let type = artifact.attributes?.fileType ?? ""
+            return Choice(label: name, value: artifact.id, description: "- \(type) \(size)")
+        } + [Choice(label: "Back", value: "back")]
+
+        let choice: Choice
+        do {
+            choice = try SelectPrompt.run(prompt: "\(actionName) - Artifacts:", choices: choices)
+        } catch is SelectPromptError {
+            return
+        }
+
+        guard choice.value != "back" else { return }
+
+        if let artifact = response.data.first(where: { $0.id == choice.value }),
+           let urlString = artifact.attributes?.downloadUrl,
+           let url = URL(string: urlString) {
+            let fileName = artifact.attributes?.fileName ?? "artifact"
+            let dest = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(fileName)
+
+            try withLoading("Downloading \(fileName)...") {
+                try runAsync { try await client.downloadArtifact(url: url, to: dest) }
+            }
+
+            print("Downloaded: \(dest.path)")
+            print("")
         }
     }
 
