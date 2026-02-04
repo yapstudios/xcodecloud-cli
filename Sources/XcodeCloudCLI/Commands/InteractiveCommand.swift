@@ -58,7 +58,7 @@ struct InteractiveCommand: ParsableCommand {
     }
 
     private func runAuthInit() throws {
-        var initCmd = AuthInitCommand()
+        var initCmd = try AuthInitCommand.parseAsRoot([]) as! AuthInitCommand
         try initCmd.run()
         print("")
     }

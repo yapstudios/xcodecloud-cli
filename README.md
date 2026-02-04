@@ -125,14 +125,11 @@ xcodecloud --generate-completion-script fish > ~/.config/fish/completions/xcodec
 ## Quick Start
 
 ```bash
-# Set up credentials (interactive)
-xcodecloud auth init
-
-# Verify credentials work
-xcodecloud auth check
-
-# Launch interactive mode
+# Launch interactive mode — prompts to set up credentials on first run
 xcodecloud
+
+# Or set up credentials directly
+xcodecloud auth init
 ```
 
 ## Authentication
@@ -156,7 +153,7 @@ You need an **App Store Connect API Team key** (not an Individual key):
 xcodecloud auth init
 ```
 
-This prompts for your credentials and saves them to `~/.xcodecloud/config.json`.
+This prompts for your credentials, saves them to `~/.xcodecloud/config.json`, and verifies they work.
 
 **Option 2: Manual config file**
 
@@ -346,10 +343,10 @@ xcodecloud artifacts download <artifact-id> --dir ~/Downloads
 #### Auth
 
 ```bash
-# Set up credentials interactively
+# Set up credentials interactively (auto-verifies after saving)
 xcodecloud auth init
 
-# Verify credentials work
+# Re-verify credentials work
 xcodecloud auth check
 
 # List configured profiles
@@ -465,9 +462,11 @@ done
 
 ## Troubleshooting
 
-### "Credentials not found"
+### "No credentials configured"
 
-Run `xcodecloud auth init` to set up credentials, or check that your config file exists at `~/.xcodecloud/config.json`.
+Run `xcodecloud auth init` to set up credentials interactively. In interactive mode (`xcodecloud` with no arguments), you'll be prompted to set up credentials automatically.
+
+You can also check that your config file exists at `~/.xcodecloud/config.json`.
 
 ### "401 Unauthorized"
 
