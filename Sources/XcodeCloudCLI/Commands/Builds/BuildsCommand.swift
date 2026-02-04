@@ -30,6 +30,9 @@ struct BuildsCommand: ParsableCommand {
               Get build status:
                 $ xcodecloud builds get <build-id>
 
+              List failed builds:
+                $ xcodecloud builds list --workflow <workflow-id> --status failed
+
               Show build errors:
                 $ xcodecloud builds errors <build-id>
 
@@ -55,7 +58,26 @@ struct BuildsCommand: ParsableCommand {
 struct BuildsListCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "list",
-        abstract: "List build runs"
+        abstract: "List build runs",
+        discussion: """
+            FILTERING
+              --status <status>  Filter by completion status
+                                 Values: SUCCEEDED, FAILED, ERRORED, CANCELED, SKIPPED
+              --running          Show only builds currently in progress
+
+            EXAMPLES
+              List recent builds:
+                $ xcodecloud builds list -o table
+
+              List failed builds for a workflow:
+                $ xcodecloud builds list --workflow <id> --status failed
+
+              List running builds:
+                $ xcodecloud builds list --running
+
+              List all builds (paginate through everything):
+                $ xcodecloud builds list --workflow <id> --all
+            """
     )
 
     @OptionGroup var options: GlobalOptions
@@ -68,6 +90,12 @@ struct BuildsListCommand: ParsableCommand {
 
     @Flag(name: .long, help: "Fetch all pages of results")
     var all: Bool = false
+
+    @Option(name: .long, help: "Filter by completion status (SUCCEEDED, FAILED, ERRORED, CANCELED, SKIPPED)")
+    var status: String?
+
+    @Flag(name: .long, help: "Show only builds currently in progress")
+    var running: Bool = false
 
     mutating func run() throws {
         let client: APIClient
@@ -82,6 +110,8 @@ struct BuildsListCommand: ParsableCommand {
         let limitVal = limit
         let verbose = options.verbose
         let fetchAll = all
+        let statusFilter = status?.uppercased()
+        let showRunning = running
 
         do {
             if let wfId = workflowId {
@@ -97,13 +127,24 @@ struct BuildsListCommand: ParsableCommand {
                 return try await client.listBuildRuns(workflowId: workflowId, limit: limitVal)
             }
 
+            var filtered = response.data
+            if showRunning {
+                filtered = filtered.filter {
+                    $0.attributes?.executionProgress != "COMPLETE"
+                }
+            } else if let statusFilter {
+                filtered = filtered.filter {
+                    $0.attributes?.completionStatus?.uppercased() == statusFilter
+                }
+            }
+
             let formatter = options.outputFormatter()
 
             if options.output == .json {
                 let output = try formatter.formatRawJSON(response)
                 print(output)
             } else {
-                let output = try formatter.format(response.data)
+                let output = try formatter.format(filtered)
                 print(output)
             }
         } catch let error as CLIError {

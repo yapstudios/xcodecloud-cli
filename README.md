@@ -239,10 +239,16 @@ Interactive mode provides a guided flow:
 
 ```bash
 # List all CI products (apps and frameworks)
-xcodecloud products list
-
-# List as table
 xcodecloud products list -o table
+
+# Filter by name (case-insensitive substring match)
+xcodecloud products list --name MyApp
+
+# Filter by type
+xcodecloud products list --type APP
+
+# Fetch all pages of results
+xcodecloud products list --all
 
 # Get details for a specific product
 xcodecloud products get <product-id>
@@ -253,6 +259,12 @@ xcodecloud products get <product-id>
 ```bash
 # List workflows for a product
 xcodecloud workflows list <product-id>
+
+# Filter by name
+xcodecloud workflows list <product-id> --name Release
+
+# Show only enabled workflows
+xcodecloud workflows list <product-id> --enabled
 
 # Get workflow details
 xcodecloud workflows get <workflow-id>
@@ -266,6 +278,15 @@ xcodecloud builds list
 
 # List builds for a specific workflow
 xcodecloud builds list --workflow <workflow-id>
+
+# Filter by status (SUCCEEDED, FAILED, ERRORED, CANCELED, SKIPPED)
+xcodecloud builds list --status failed
+
+# Show only running builds
+xcodecloud builds list --running
+
+# Combine filters
+xcodecloud builds list --workflow <workflow-id> --status failed
 
 # Get build details
 xcodecloud builds get <build-id>
@@ -365,7 +386,30 @@ xcodecloud products list -o csv
 | `--verbose` | `-v` | Show debug information |
 | `--quiet` | `-q` | Suppress non-essential output |
 | `--profile` | | Use a specific auth profile |
+| `--all` | | Fetch all pages of results (for list commands) |
 | `--help` | `-h` | Show help for any command |
+
+### Filtering
+
+List commands support client-side filtering. Filters are applied after fetching results from the API.
+
+| Command | Flag | Description |
+|---------|------|-------------|
+| `products list` | `--name <text>` | Filter by name (case-insensitive substring match) |
+| `products list` | `--type <type>` | Filter by product type: `APP`, `FRAMEWORK` |
+| `workflows list` | `--name <text>` | Filter by name (case-insensitive substring match) |
+| `workflows list` | `--enabled` | Show only enabled workflows |
+| `workflows list` | `--disabled` | Show only disabled workflows |
+| `builds list` | `--workflow <id>` | Show builds for a specific workflow |
+| `builds list` | `--status <status>` | Filter by completion status: `SUCCEEDED`, `FAILED`, `ERRORED`, `CANCELED`, `SKIPPED` |
+| `builds list` | `--running` | Show only builds currently in progress |
+
+Filters can be combined:
+
+```bash
+xcodecloud builds list --workflow <id> --status failed
+xcodecloud products list --name MyApp --type APP
+```
 
 ## Examples
 

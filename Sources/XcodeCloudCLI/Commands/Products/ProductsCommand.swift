@@ -12,10 +12,10 @@ struct ProductsCommand: ParsableCommand {
 
             EXAMPLES
               List all products:
-                $ xcodecloud products list
-
-              List products in table format:
                 $ xcodecloud products list -o table
+
+              Filter by name:
+                $ xcodecloud products list --name MyApp
 
               Get details for a specific product:
                 $ xcodecloud products get <product-id>
@@ -30,7 +30,22 @@ struct ProductsCommand: ParsableCommand {
 struct ProductsListCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "list",
-        abstract: "List all CI products"
+        abstract: "List all CI products",
+        discussion: """
+            FILTERING
+              --name <text>    Filter products by name (case-insensitive substring match)
+              --type <type>    Filter by product type (APP, FRAMEWORK)
+
+            EXAMPLES
+              List all products:
+                $ xcodecloud products list -o table
+
+              Filter by name:
+                $ xcodecloud products list --name MyApp
+
+              Filter by type:
+                $ xcodecloud products list --type APP
+            """
     )
 
     @OptionGroup var options: GlobalOptions
@@ -40,6 +55,12 @@ struct ProductsListCommand: ParsableCommand {
 
     @Flag(name: .long, help: "Fetch all pages of results")
     var all: Bool = false
+
+    @Option(name: .long, help: "Filter by name (case-insensitive substring match)")
+    var name: String?
+
+    @Option(name: .long, help: "Filter by product type (APP, FRAMEWORK)")
+    var type: String?
 
     mutating func run() throws {
         let client: APIClient
@@ -53,6 +74,8 @@ struct ProductsListCommand: ParsableCommand {
         let limitVal = limit
         let verbose = options.verbose
         let fetchAll = all
+        let nameFilter = name
+        let typeFilter = type?.uppercased()
 
         do {
             printVerbose("Fetching products...", verbose: verbose)
@@ -63,13 +86,25 @@ struct ProductsListCommand: ParsableCommand {
                 return try await client.listProducts(limit: limitVal)
             }
 
+            var filtered = response.data
+            if let nameFilter {
+                filtered = filtered.filter {
+                    $0.attributes?.name?.localizedCaseInsensitiveContains(nameFilter) == true
+                }
+            }
+            if let typeFilter {
+                filtered = filtered.filter {
+                    $0.attributes?.productType?.uppercased() == typeFilter
+                }
+            }
+
             let formatter = options.outputFormatter()
 
             if options.output == .json {
                 let output = try formatter.formatRawJSON(response)
                 print(output)
             } else {
-                let rows = response.data.map { product -> [String] in
+                let rows = filtered.map { product -> [String] in
                     [
                         product.id,
                         product.attributes?.name ?? "-",

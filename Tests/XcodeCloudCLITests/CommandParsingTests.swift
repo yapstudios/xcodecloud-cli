@@ -122,6 +122,20 @@ struct CommandParsingTests {
         #expect(listCmd.all == true)
     }
 
+    @Test("Products list with name filter")
+    func testProductsListWithName() throws {
+        let command = try XcodeCloud.parseAsRoot(["products", "list", "--name", "MyApp"])
+        let listCmd = command as! ProductsListCommand
+        #expect(listCmd.name == "MyApp")
+    }
+
+    @Test("Products list with type filter")
+    func testProductsListWithType() throws {
+        let command = try XcodeCloud.parseAsRoot(["products", "list", "--type", "APP"])
+        let listCmd = command as! ProductsListCommand
+        #expect(listCmd.type == "APP")
+    }
+
     @Test("Products list with output format")
     func testProductsListWithFormat() throws {
         let command = try XcodeCloud.parseAsRoot(["products", "list", "-o", "table"])
@@ -153,6 +167,29 @@ struct CommandParsingTests {
         #expect(command is WorkflowsListCommand)
         let listCmd = command as! WorkflowsListCommand
         #expect(listCmd.productId == "product123")
+    }
+
+    @Test("Workflows list with name filter")
+    func testWorkflowsListWithName() throws {
+        let command = try XcodeCloud.parseAsRoot(["workflows", "list", "product123", "--name", "Release"])
+        let listCmd = command as! WorkflowsListCommand
+        #expect(listCmd.name == "Release")
+    }
+
+    @Test("Workflows list with enabled flag")
+    func testWorkflowsListEnabled() throws {
+        let command = try XcodeCloud.parseAsRoot(["workflows", "list", "product123", "--enabled"])
+        let listCmd = command as! WorkflowsListCommand
+        #expect(listCmd.enabled == true)
+        #expect(listCmd.disabled == false)
+    }
+
+    @Test("Workflows list with disabled flag")
+    func testWorkflowsListDisabled() throws {
+        let command = try XcodeCloud.parseAsRoot(["workflows", "list", "product123", "--disabled"])
+        let listCmd = command as! WorkflowsListCommand
+        #expect(listCmd.disabled == true)
+        #expect(listCmd.enabled == false)
     }
 
     @Test("Workflows get parses with ID")
@@ -189,6 +226,20 @@ struct CommandParsingTests {
         let command = try XcodeCloud.parseAsRoot(["builds", "list", "--all"])
         let listCmd = command as! BuildsListCommand
         #expect(listCmd.all == true)
+    }
+
+    @Test("Builds list with status filter")
+    func testBuildsListWithStatus() throws {
+        let command = try XcodeCloud.parseAsRoot(["builds", "list", "--status", "FAILED"])
+        let listCmd = command as! BuildsListCommand
+        #expect(listCmd.status == "FAILED")
+    }
+
+    @Test("Builds list with running flag")
+    func testBuildsListRunning() throws {
+        let command = try XcodeCloud.parseAsRoot(["builds", "list", "--running"])
+        let listCmd = command as! BuildsListCommand
+        #expect(listCmd.running == true)
     }
 
     @Test("Builds list with workflow filter")
