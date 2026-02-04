@@ -106,6 +106,50 @@ public struct OutputFormatter: Sendable {
         return output.trimmingCharacters(in: .newlines)
     }
 
+    /// Format a table or CSV from raw headers and rows
+    public func formatTable(headers: [String], rows: [[String]]) -> String {
+        guard !rows.isEmpty else {
+            return "No results"
+        }
+
+        if format == .csv {
+            var csv = headers.map { escapeCSV($0) }.joined(separator: ",") + "\n"
+            for row in rows {
+                csv += row.map { escapeCSV($0) }.joined(separator: ",") + "\n"
+            }
+            return csv.trimmingCharacters(in: .newlines)
+        }
+
+        var widths = headers.map { $0.count }
+        for row in rows {
+            for (i, cell) in row.enumerated() where i < widths.count {
+                widths[i] = max(widths[i], cell.count)
+            }
+        }
+
+        var output = ""
+
+        let headerLine = headers.enumerated().map { (i, h) in
+            h.padding(toLength: widths[i], withPad: " ", startingAt: 0)
+        }.joined(separator: "  ")
+        output += colorize(headerLine, .bold) + "\n"
+
+        let separator = widths.map { String(repeating: "-", count: $0) }.joined(separator: "  ")
+        output += separator + "\n"
+
+        for row in rows {
+            let line = row.enumerated().map { (i, cell) in
+                if i < widths.count {
+                    return cell.padding(toLength: widths[i], withPad: " ", startingAt: 0)
+                }
+                return cell
+            }.joined(separator: "  ")
+            output += line + "\n"
+        }
+
+        return output.trimmingCharacters(in: .newlines)
+    }
+
     private func formatCSV<T: OutputFormattable>(_ items: [T]) -> String {
         guard !items.isEmpty else {
             return ""
@@ -268,7 +312,7 @@ extension CiTestResult: OutputFormattable {
     }
 }
 
-private func formatDate(_ isoDate: String?) -> String? {
+public func formatDate(_ isoDate: String?) -> String? {
     guard let dateStr = isoDate else { return nil }
 
     let isoFormatter = ISO8601DateFormatter()

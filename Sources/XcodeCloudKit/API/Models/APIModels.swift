@@ -78,7 +78,30 @@ public struct CiProductAttributes: Codable, Sendable {
 
 public struct CiProductRelationships: Codable, Sendable {
     public let app: Relationship?
+    public let bundleId: Relationship?
     public let primaryRepositories: RelationshipList?
+}
+
+extension CiProduct {
+    /// Look up the bundle identifier from included resources.
+    /// Checks bundleId relationship first, then falls back to app relationship.
+    public func bundleId(from included: [IncludedResource]?) -> String? {
+        guard let included else { return nil }
+
+        if let ref = relationships?.bundleId?.data?.id,
+           let identifier = included.first(where: { $0.type == "bundleIds" && $0.id == ref })?
+               .attributes?["identifier"]?.value as? String {
+            return identifier
+        }
+
+        if let appId = relationships?.app?.data?.id,
+           let identifier = included.first(where: { $0.type == "apps" && $0.id == appId })?
+               .attributes?["bundleId"]?.value as? String {
+            return identifier
+        }
+
+        return nil
+    }
 }
 
 // MARK: - CI Workflows

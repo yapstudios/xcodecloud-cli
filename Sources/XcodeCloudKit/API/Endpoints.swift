@@ -71,8 +71,15 @@ public enum Endpoint {
         var items: [URLQueryItem] = []
 
         switch self {
-        case .listProducts(let limit, let cursor),
-             .listWorkflows(_, let limit, let cursor),
+        case .listProducts(let limit, let cursor):
+            items.append(URLQueryItem(name: "include", value: "app,bundleId"))
+            if let limit = limit {
+                items.append(URLQueryItem(name: "limit", value: String(limit)))
+            }
+            if let cursor = cursor {
+                items.append(URLQueryItem(name: "cursor", value: cursor))
+            }
+        case .listWorkflows(_, let limit, let cursor),
              .listBuildRuns(_, let limit, let cursor):
             if let limit = limit {
                 items.append(URLQueryItem(name: "limit", value: String(limit)))

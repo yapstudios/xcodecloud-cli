@@ -62,7 +62,15 @@ struct ProductsListCommand: ParsableCommand {
                 let output = try formatter.formatRawJSON(response)
                 print(output)
             } else {
-                let output = try formatter.format(response.data)
+                let rows = response.data.map { product -> [String] in
+                    [
+                        product.id,
+                        product.attributes?.name ?? "-",
+                        product.bundleId(from: response.included) ?? product.attributes?.productType ?? "-",
+                        formatDate(product.attributes?.createdDate) ?? "-"
+                    ]
+                }
+                let output = formatter.formatTable(headers: ["ID", "NAME", "BUNDLE ID", "CREATED"], rows: rows)
                 print(output)
             }
         } catch let error as CLIError {

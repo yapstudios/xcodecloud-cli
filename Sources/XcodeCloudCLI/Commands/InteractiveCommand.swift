@@ -107,10 +107,11 @@ struct InteractiveCommand: ParsableCommand {
             return
         }
 
-        let choices = response.data.map { product in
+        let choices = response.data.sorted { ($0.attributes?.name ?? "") < ($1.attributes?.name ?? "") }.map { product in
             let name = product.attributes?.name ?? "Unknown"
-            let type = product.attributes?.productType ?? ""
-            return Choice(label: name, value: product.id, description: "- \(type)")
+            let bundleId = product.bundleId(from: response.included)
+            let desc = bundleId ?? product.attributes?.productType ?? ""
+            return Choice(label: name, value: product.id, description: "- \(desc)")
         } + [Choice(label: "Back", value: "back")]
 
         while true {
