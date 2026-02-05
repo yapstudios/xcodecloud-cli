@@ -30,6 +30,7 @@ xcodecloud
 ├── builds
 │   ├── list --workflow <id> → List build runs for a workflow
 │   ├── find <commit-sha>    → Find a build by commit SHA
+│   ├── running              → Show all running builds
 │   ├── get <id>             → Get details for a build run
 │   ├── start <workflow-id>  → Start a new build run
 │   ├── watch <build-id>     → Watch a build until completion
@@ -309,6 +310,15 @@ xcodecloud builds find abc1234
 # Narrow the search to a specific product
 xcodecloud builds find abc1234 --product <product-id>
 
+# Show all running builds across all products
+xcodecloud builds running
+
+# Show running builds for a specific product
+xcodecloud builds running --product <product-id>
+
+# Show running builds across all configured profiles
+xcodecloud builds running --all-profiles
+
 # Get build details
 xcodecloud builds get <build-id>
 
@@ -442,6 +452,8 @@ List commands support client-side filtering. Filters are applied after fetching 
 | `builds list` | `--status <status>` | Filter by completion status: `SUCCEEDED`, `FAILED`, `ERRORED`, `CANCELED`, `SKIPPED` |
 | `builds list` | `--running` | Show only builds currently in progress |
 | `builds list` | `--commit <sha>` | Filter by commit SHA prefix |
+| `builds running` | `--product <id>` | Narrow to a specific product |
+| `builds running` | `--all-profiles` | Check all configured profiles |
 
 Filters can be combined:
 

@@ -33,6 +33,9 @@ struct BuildsCommand: ParsableCommand {
               Find a build by commit SHA:
                 $ xcodecloud builds find abc1234
 
+              Show all running builds:
+                $ xcodecloud builds running
+
               Show build errors:
                 $ xcodecloud builds errors <build-id>
 
@@ -42,6 +45,7 @@ struct BuildsCommand: ParsableCommand {
         subcommands: [
             BuildsListCommand.self,
             BuildsFindCommand.self,
+            BuildsRunningCommand.self,
             BuildsGetCommand.self,
             BuildsStartCommand.self,
             BuildsWatchCommand.self,
@@ -439,6 +443,236 @@ struct BuildsFindCommand: ParsableCommand {
         } catch let error as CLIError {
             printError(error.localizedDescription)
             throw ExitCode(rawValue: error.exitCode)
+        }
+    }
+}
+
+struct BuildsRunningCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "running",
+        abstract: "Show all running builds",
+        discussion: """
+            Shows all builds currently in progress across all products and workflows.
+
+            Use --product to narrow the search to a specific product.
+            Use --all-profiles to check all configured profiles.
+
+            EXAMPLES
+              Show all running builds:
+                $ xcodecloud builds running
+
+              Narrow to a specific product:
+                $ xcodecloud builds running --product <product-id>
+
+              Check all profiles:
+                $ xcodecloud builds running --all-profiles
+
+              JSON output for scripting:
+                $ xcodecloud builds running -o json
+            """
+    )
+
+    @OptionGroup var options: GlobalOptions
+
+    @Option(name: .long, help: "Narrow search to a specific product ID")
+    var product: String?
+
+    @Flag(name: .customLong("all-profiles"), help: "Check all configured profiles")
+    var allProfiles: Bool = false
+
+    struct RunningBuild: Codable {
+        let profile: String?
+        let productId: String
+        let productName: String
+        let workflowId: String
+        let workflowName: String
+        let buildId: String
+        let buildNumber: Int?
+        let status: String
+        let commit: String?
+        let startedAt: String?
+    }
+
+    mutating func run() throws {
+        let verbose = options.verbose
+        let quiet = options.quiet
+
+        var allRunningBuilds: [RunningBuild] = []
+
+        // Determine which profiles to check
+        let profilesToCheck: [(name: String?, credentials: Credentials)]
+
+        if allProfiles {
+            let resolver = CredentialResolver()
+            var profiles: [(String?, Credentials)] = []
+
+            // Load from global config
+            if let config = try resolver.loadConfig(from: CredentialResolver.globalConfigPath) {
+                for (name, profile) in config.profiles {
+                    if let creds = try? profile.toCredentials() {
+                        profiles.append((name, creds))
+                    }
+                }
+            }
+
+            // Load from local config (may override)
+            if let config = try resolver.loadConfig(from: CredentialResolver.localConfigPath) {
+                for (name, profile) in config.profiles {
+                    if let creds = try? profile.toCredentials() {
+                        // Add if not already present
+                        if !profiles.contains(where: { $0.0 == name }) {
+                            profiles.append((name, creds))
+                        }
+                    }
+                }
+            }
+
+            if profiles.isEmpty {
+                printError("No profiles found in config")
+                throw ExitCode.failure
+            }
+
+            profilesToCheck = profiles
+        } else {
+            // Just use the current profile
+            let resolver = CredentialResolver()
+            let credOptions = CredentialOptions(
+                keyId: options.keyId,
+                issuerId: options.issuerId,
+                privateKeyPath: options.privateKeyPath,
+                privateKey: options.privateKey,
+                profile: options.profile
+            )
+            let creds: Credentials
+            do {
+                creds = try resolver.resolve(options: credOptions)
+            } catch let error as CLIError {
+                printError(error.localizedDescription)
+                throw ExitCode(rawValue: error.exitCode)
+            }
+            profilesToCheck = [(options.profile, creds)]
+        }
+
+        for (profileName, credentials) in profilesToCheck {
+            let client = APIClient(credentials: credentials)
+            let profileLabel = profileName ?? "default"
+
+            if allProfiles && !quiet {
+                printVerbose("Checking profile '\(profileLabel)'...", verbose: verbose)
+            }
+
+            do {
+                let products: [CiProduct]
+                if let productId = product {
+                    printVerbose("Fetching product \(productId)...", verbose: verbose)
+                    let response = try runAsync {
+                        try await client.getProduct(id: productId)
+                    }
+                    products = [response.data]
+                } else {
+                    printVerbose("Fetching all products...", verbose: verbose)
+                    let response = try runAsync {
+                        try await client.listAllProducts()
+                    }
+                    products = response.data
+                }
+
+                for product in products {
+                    let productName = product.attributes?.name ?? product.id
+                    printVerbose("Checking workflows for \(productName)...", verbose: verbose)
+
+                    let workflowsResponse = try runAsync {
+                        try await client.listAllWorkflows(productId: product.id)
+                    }
+
+                    for workflow in workflowsResponse.data {
+                        let workflowName = workflow.attributes?.name ?? workflow.id
+
+                        let buildsResponse = try runAsync {
+                            try await client.listBuildRuns(workflowId: workflow.id, limit: 10)
+                        }
+
+                        let running = buildsResponse.data.filter {
+                            $0.attributes?.executionProgress != "COMPLETE"
+                        }
+
+                        for build in running {
+                            let attrs = build.attributes
+                            allRunningBuilds.append(RunningBuild(
+                                profile: allProfiles ? profileLabel : nil,
+                                productId: product.id,
+                                productName: productName,
+                                workflowId: workflow.id,
+                                workflowName: workflowName,
+                                buildId: build.id,
+                                buildNumber: attrs?.number,
+                                status: attrs?.executionProgress ?? "UNKNOWN",
+                                commit: attrs?.sourceCommit?.commitSha.map { String($0.prefix(7)) },
+                                startedAt: attrs?.startedDate
+                            ))
+                        }
+                    }
+                }
+            } catch let error as CLIError {
+                if allProfiles {
+                    // Continue with other profiles on error
+                    printError("Profile '\(profileLabel)': \(error.localizedDescription)")
+                } else {
+                    printError(error.localizedDescription)
+                    throw ExitCode(rawValue: error.exitCode)
+                }
+            }
+        }
+
+        let formatter = options.outputFormatter()
+
+        if options.output == .json {
+            let output = try formatter.formatRawJSON(allRunningBuilds)
+            print(output)
+        } else {
+            if allRunningBuilds.isEmpty {
+                if !quiet {
+                    print("No running builds")
+                }
+            } else {
+                // Table output
+                if allProfiles {
+                    print(String(format: "%-12s %-20s %-20s %-8s %-10s %-8s %-20s",
+                                 "PROFILE", "PRODUCT", "WORKFLOW", "BUILD", "STATUS", "COMMIT", "STARTED"))
+                } else {
+                    print(String(format: "%-20s %-20s %-8s %-10s %-8s %-20s",
+                                 "PRODUCT", "WORKFLOW", "BUILD", "STATUS", "COMMIT", "STARTED"))
+                }
+
+                for build in allRunningBuilds {
+                    let buildNum = build.buildNumber.map { "#\($0)" } ?? build.buildId
+                    let started = build.startedAt.flatMap { formatDate($0) } ?? "-"
+
+                    if allProfiles {
+                        print(String(format: "%-12s %-20s %-20s %-8s %-10s %-8s %-20s",
+                                     build.profile ?? "-",
+                                     String(build.productName.prefix(20)),
+                                     String(build.workflowName.prefix(20)),
+                                     String(buildNum.prefix(8)),
+                                     build.status,
+                                     build.commit ?? "-",
+                                     started))
+                    } else {
+                        print(String(format: "%-20s %-20s %-8s %-10s %-8s %-20s",
+                                     String(build.productName.prefix(20)),
+                                     String(build.workflowName.prefix(20)),
+                                     String(buildNum.prefix(8)),
+                                     build.status,
+                                     build.commit ?? "-",
+                                     started))
+                    }
+                }
+
+                if !quiet {
+                    print("")
+                    print("\(allRunningBuilds.count) running build(s)")
+                }
+            }
         }
     }
 }

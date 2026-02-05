@@ -137,6 +137,7 @@ struct InteractiveCommand: ParsableCommand {
                 choice = try SelectPrompt.run(
                     prompt: "What would you like to do? (profile: \(profileName))",
                     choices: [
+                        Choice(label: "Running Builds", value: "running", description: "- View in-progress builds"),
                         Choice(label: "Products", value: "products", description: "- Browse apps & frameworks"),
                         Choice(label: "Auth", value: "auth", description: "- Profiles, credentials"),
                         Choice(label: "Exit", value: "exit"),
@@ -147,6 +148,8 @@ struct InteractiveCommand: ParsableCommand {
             }
 
             switch choice.value {
+            case "running":
+                try runningBuildsMenu(client: client)
             case "products":
                 try productsMenu(client: client)
             case "auth":
@@ -234,6 +237,110 @@ struct InteractiveCommand: ParsableCommand {
             printError(error.localizedDescription)
         }
         print("")
+    }
+
+    // MARK: - Running Builds
+
+    private func runningBuildsMenu(client: APIClient) throws {
+        print(TerminalUI.dim("Scanning for running builds..."))
+
+        // Gather all running builds
+        struct RunningBuildInfo {
+            let build: CiBuildRun
+            let productName: String
+            let workflowName: String
+        }
+
+        var runningBuilds: [RunningBuildInfo] = []
+
+        let productsResponse = try runAsync { try await client.listAllProducts() }
+
+        for product in productsResponse.data {
+            let productName = product.attributes?.name ?? product.id
+            let workflowsResponse = try runAsync { try await client.listAllWorkflows(productId: product.id) }
+
+            for workflow in workflowsResponse.data {
+                let workflowName = workflow.attributes?.name ?? workflow.id
+                let buildsResponse = try runAsync { try await client.listBuildRuns(workflowId: workflow.id, limit: 10) }
+
+                let running = buildsResponse.data.filter { $0.attributes?.executionProgress != "COMPLETE" }
+                for build in running {
+                    runningBuilds.append(RunningBuildInfo(build: build, productName: productName, workflowName: workflowName))
+                }
+            }
+        }
+
+        // Clear the scanning message
+        TerminalUI.moveCursorUp(1)
+        TerminalUI.clearLine()
+
+        if runningBuilds.isEmpty {
+            print("No running builds.")
+            print("")
+            return
+        }
+
+        while true {
+            var choices = runningBuilds.map { info in
+                let build = info.build
+                let attrs = build.attributes
+                let buildNum = attrs?.number.map { "#\($0)" } ?? build.id
+                let status = attrs?.executionProgress ?? "UNKNOWN"
+                let commit = attrs?.sourceCommit?.commitSha.map { String($0.prefix(7)) } ?? ""
+                let label = "\(info.productName) / \(info.workflowName) \(buildNum)"
+                return Choice(label: label, value: build.id, description: "- \(status) \(commit)")
+            }
+            choices.append(Choice(label: "Refresh", value: "refresh"))
+            choices.append(Choice(label: "Back", value: "back"))
+
+            let choice: Choice
+            do {
+                choice = try SelectPrompt.run(prompt: "\(runningBuilds.count) running build(s):", choices: choices)
+            } catch is SelectPromptError {
+                return
+            }
+
+            if choice.value == "back" { return }
+
+            if choice.value == "refresh" {
+                // Re-scan
+                print(TerminalUI.dim("Refreshing..."))
+                runningBuilds.removeAll()
+
+                for product in productsResponse.data {
+                    let productName = product.attributes?.name ?? product.id
+                    let workflowsResponse = try runAsync { try await client.listAllWorkflows(productId: product.id) }
+
+                    for workflow in workflowsResponse.data {
+                        let workflowName = workflow.attributes?.name ?? workflow.id
+                        let buildsResponse = try runAsync { try await client.listBuildRuns(workflowId: workflow.id, limit: 10) }
+
+                        let running = buildsResponse.data.filter { $0.attributes?.executionProgress != "COMPLETE" }
+                        for build in running {
+                            runningBuilds.append(RunningBuildInfo(build: build, productName: productName, workflowName: workflowName))
+                        }
+                    }
+                }
+
+                TerminalUI.moveCursorUp(1)
+                TerminalUI.clearLine()
+
+                if runningBuilds.isEmpty {
+                    print("No running builds.")
+                    print("")
+                    return
+                }
+                continue
+            }
+
+            // Selected a build — show build actions
+            if let info = runningBuilds.first(where: { $0.build.id == choice.value }) {
+                let attrs = info.build.attributes
+                let buildNum = attrs?.number.map { "#\($0)" } ?? info.build.id
+                let buildLabel = "\(info.productName) / \(info.workflowName) \(buildNum)"
+                try buildActionsMenu(client: client, buildId: info.build.id, buildLabel: buildLabel)
+            }
+        }
     }
 
     // MARK: - Products
