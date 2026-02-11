@@ -592,6 +592,10 @@ Use direct commands with `-o table` or `-o json` instead.
 
 See [CHANGELOG.md](CHANGELOG.md) for a list of changes by version.
 
+## Support
+
+If you find this tool useful, consider giving it a star on GitHub — it helps others discover it.
+
 ## License
 
 [MIT](LICENSE)
