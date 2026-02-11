@@ -1,5 +1,11 @@
 # xcodecloud-cli
 
+[![CI](https://github.com/yapstudios/xcodecloud-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/yapstudios/xcodecloud-cli/actions/workflows/ci.yml)
+[![Swift 6](https://img.shields.io/badge/Swift-6-F05138.svg)](https://swift.org)
+[![macOS 12+](https://img.shields.io/badge/macOS-12%2B-000000.svg)](https://developer.apple.com/macos/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Homebrew](https://img.shields.io/badge/Homebrew-yapstudios%2Ftap-FBB040.svg)](https://github.com/yapstudios/homebrew-tap)
+
 A command-line interface for [Xcode Cloud](https://developer.apple.com/xcode-cloud/) via the App Store Connect API.
 
 ## Features
