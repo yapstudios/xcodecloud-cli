@@ -582,6 +582,10 @@ Interactive mode requires a TTY. It won't work when:
 
 Use direct commands with `-o table` or `-o json` instead.
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a list of changes by version.
+
 ## License
 
 [MIT](LICENSE)
