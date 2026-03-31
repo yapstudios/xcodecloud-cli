@@ -19,7 +19,7 @@ struct GlobalOptions: ParsableArguments {
     var privateKey: String?
 
     @Option(name: [.customShort("o"), .long], help: "Output format: json, table, csv")
-    var output: OutputFormat = .json
+    var output: OutputFormat = .table
 
     @Flag(name: .long, help: "Pretty-print JSON output")
     var pretty: Bool = false

@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: macos-26
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.2'
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build arm64
+        run: swift build -c release --arch arm64
+
+      - name: Build x86_64
+        run: swift build -c release --arch x86_64
+
+      - name: Create universal binary
+        run: |
+          mkdir -p .build/universal
+          lipo -create \
+            .build/arm64-apple-macosx/release/xcodecloud \
+            .build/x86_64-apple-macosx/release/xcodecloud \
+            -output .build/universal/xcodecloud
+
+      - name: Ad-hoc codesign
+        run: codesign --force --sign - .build/universal/xcodecloud
+
+      - name: Verify binary
+        run: |
+          file .build/universal/xcodecloud
+          .build/universal/xcodecloud --version
+
+      - name: Package binary
+        run: |
+          cd .build/universal
+          tar czf xcodecloud-macos-universal.tar.gz xcodecloud
+          shasum -a 256 xcodecloud-macos-universal.tar.gz > xcodecloud-macos-universal.tar.gz.sha256
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          # Extract notes for this version from CHANGELOG.md if it exists
+          if [ -f CHANGELOG.md ]; then
+            # Get content between this version header and the next
+            NOTES=$(sed -n "/^## .*${TAG}/,/^## /{ /^## .*${TAG}/d; /^## /d; p; }" CHANGELOG.md)
+          fi
+          if [ -z "$NOTES" ]; then
+            NOTES="Release ${TAG}"
+          fi
+          # Write to file to preserve newlines
+          echo "$NOTES" > /tmp/release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file /tmp/release-notes.md \
+            .build/universal/xcodecloud-macos-universal.tar.gz \
+            .build/universal/xcodecloud-macos-universal.tar.gz.sha256
