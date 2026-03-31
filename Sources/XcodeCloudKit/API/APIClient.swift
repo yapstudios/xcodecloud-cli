@@ -50,9 +50,15 @@ public actor APIClient {
         try await request(.getBuildRun(id: id))
     }
 
-    public func startBuildRun(workflowId: String, gitReference: GitReference? = nil) async throws -> APIResponse<CiBuildRun> {
-        let body = CiBuildRunCreateRequest(workflowId: workflowId, gitReference: gitReference)
+    public func startBuildRun(workflowId: String, gitReferenceId: String? = nil) async throws -> APIResponse<CiBuildRun> {
+        let body = CiBuildRunCreateRequest(workflowId: workflowId, gitReferenceId: gitReferenceId)
         return try await request(.startBuildRun, body: body)
+    }
+
+    // MARK: - SCM Git References
+
+    public func listGitReferences(repositoryId: String) async throws -> APIListResponse<ScmGitReference> {
+        try await request(.listGitReferences(repositoryId: repositoryId))
     }
 
     // MARK: - Build Actions

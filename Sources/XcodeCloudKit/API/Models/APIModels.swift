@@ -373,46 +373,44 @@ public struct RelationshipList: Codable, Sendable {
 public struct CiBuildRunCreateRequest: Codable, Sendable {
     public let data: CiBuildRunCreateData
 
-    public init(workflowId: String, gitReference: GitReference? = nil) {
-        self.data = CiBuildRunCreateData(workflowId: workflowId, gitReference: gitReference)
+    public init(workflowId: String, gitReferenceId: String? = nil) {
+        self.data = CiBuildRunCreateData(workflowId: workflowId, gitReferenceId: gitReferenceId)
     }
 }
 
 public struct CiBuildRunCreateData: Codable, Sendable {
     public var type: String
-    public let attributes: CiBuildRunCreateAttributes?
     public let relationships: CiBuildRunCreateRelationships
 
-    public init(workflowId: String, gitReference: GitReference? = nil) {
+    public init(workflowId: String, gitReferenceId: String? = nil) {
         self.type = "ciBuildRuns"
-        self.attributes = gitReference.map { CiBuildRunCreateAttributes(sourceBranchOrTag: $0) }
-        self.relationships = CiBuildRunCreateRelationships(workflowId: workflowId)
-    }
-}
-
-public struct CiBuildRunCreateAttributes: Codable, Sendable {
-    public let sourceBranchOrTag: GitReference?
-}
-
-public struct GitReference: Codable, Sendable {
-    public let kind: String  // "BRANCH" or "TAG"
-    public let name: String
-
-    public static func branch(_ name: String) -> GitReference {
-        GitReference(kind: "BRANCH", name: name)
-    }
-
-    public static func tag(_ name: String) -> GitReference {
-        GitReference(kind: "TAG", name: name)
+        self.relationships = CiBuildRunCreateRelationships(workflowId: workflowId, gitReferenceId: gitReferenceId)
     }
 }
 
 public struct CiBuildRunCreateRelationships: Codable, Sendable {
     public let workflow: CreateRelationship
+    public let sourceBranchOrTag: CreateRelationship?
 
-    public init(workflowId: String) {
+    public init(workflowId: String, gitReferenceId: String? = nil) {
         self.workflow = CreateRelationship(id: workflowId, type: "ciWorkflows")
+        self.sourceBranchOrTag = gitReferenceId.map { CreateRelationship(id: $0, type: "scmGitReferences") }
     }
+}
+
+// MARK: - SCM Git References
+
+public struct ScmGitReference: Codable, Sendable, Identifiable {
+    public let type: String
+    public let id: String
+    public let attributes: ScmGitReferenceAttributes?
+}
+
+public struct ScmGitReferenceAttributes: Codable, Sendable {
+    public let name: String?
+    public let canonicalName: String?
+    public let isDeleted: Bool?
+    public let kind: String?  // "BRANCH" or "TAG"
 }
 
 public struct CreateRelationship: Codable, Sendable {

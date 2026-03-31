@@ -17,6 +17,7 @@ public enum Endpoint {
     case getIssue(id: String)
     case listTestResults(buildActionId: String)
     case getTestResult(id: String)
+    case listGitReferences(repositoryId: String)
 
     public var path: String {
         switch self {
@@ -53,6 +54,8 @@ public enum Endpoint {
             return "/v1/ciBuildActions/\(buildActionId)/testResults"
         case .getTestResult(let id):
             return "/v1/ciTestResults/\(id)"
+        case .listGitReferences(let repositoryId):
+            return "/v1/scmRepositories/\(repositoryId)/gitReferences"
         }
     }
 
@@ -94,6 +97,10 @@ public enum Endpoint {
             if let cursor = cursor {
                 items.append(URLQueryItem(name: "cursor", value: cursor))
             }
+        case .getWorkflow:
+            items.append(URLQueryItem(name: "include", value: "repository"))
+        case .listGitReferences:
+            items.append(URLQueryItem(name: "limit", value: "200"))
         default:
             break
         }

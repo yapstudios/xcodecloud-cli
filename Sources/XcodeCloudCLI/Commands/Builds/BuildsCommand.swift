@@ -759,18 +759,31 @@ struct BuildsStartCommand: ParsableCommand {
         let quiet = options.quiet
 
         do {
-            let gitReference: GitReference?
-            if let branch = branch {
-                gitReference = .branch(branch)
-            } else if let tag = tag {
-                gitReference = .tag(tag)
+            let gitReferenceId: String?
+            if branch != nil || tag != nil {
+                let kind = branch != nil ? "BRANCH" : "TAG"
+                let name = branch ?? tag!
+                printVerbose("Resolving \(kind.lowercased()) '\(name)'...", verbose: verbose)
+                let workflow = try runAsync { try await client.getWorkflow(id: wfId) }
+                guard let repoId = workflow.data.relationships?.repository?.data?.id else {
+                    printError("Could not determine repository for workflow \(wfId)")
+                    throw ExitCode.failure
+                }
+                let refs = try runAsync { try await client.listGitReferences(repositoryId: repoId) }
+                guard let ref = refs.data.first(where: {
+                    $0.attributes?.name == name && $0.attributes?.kind == kind && $0.attributes?.isDeleted != true
+                }) else {
+                    printError("\(kind == "BRANCH" ? "Branch" : "Tag") '\(name)' not found in repository")
+                    throw ExitCode.failure
+                }
+                gitReferenceId = ref.id
             } else {
-                gitReference = nil
+                gitReferenceId = nil
             }
 
             printVerbose("Starting build for workflow \(wfId)...", verbose: verbose)
             let response = try runAsync {
-                try await client.startBuildRun(workflowId: wfId, gitReference: gitReference)
+                try await client.startBuildRun(workflowId: wfId, gitReferenceId: gitReferenceId)
             }
 
             if !quiet {
